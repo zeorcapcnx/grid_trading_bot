@@ -7,6 +7,13 @@ def save_or_append_performance_results(
     new_results: Dict[str, Any], 
     file_path: str
 ) -> None:
+    """
+    Saves or appends performance results to a JSON file.
+
+    Args:
+        new_results: Dictionary containing performance summary and orders.
+        file_path: Path to the JSON file.
+    """
     try:
         if os.path.exists(file_path):
             with open(file_path, 'r') as json_file:
@@ -30,7 +37,7 @@ def save_or_append_performance_results(
             for key, value in new_results.get("performance_summary").items()
         }
         
-        order_keys = ["Order Type", "Price", "Quantity", "Timestamp", "Grid Level", "Slippage"]
+        order_keys = ["Order Side", "Type", "Status", "Price", "Quantity", "Timestamp", "Grid Level", "Slippage"]
         cleaned_orders = [
             {key: (value.isoformat() if isinstance(value, (datetime, pd.Timestamp)) else value)
             for key, value in zip(order_keys, order)}

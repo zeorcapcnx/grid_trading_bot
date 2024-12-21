@@ -31,6 +31,7 @@ class HealthCheck:
         self.event_bus = event_bus
         self.check_interval = check_interval
         self._is_running = False
+        self._stop_event = asyncio.Event()
         self.event_bus.subscribe(Events.STOP_BOT, self._handle_stop)
         self.event_bus.subscribe(Events.START_BOT, self._handle_start)
     
@@ -43,12 +44,18 @@ class HealthCheck:
             return
 
         self._is_running = True
+        self._stop_event.clear()
         self.logger.info("HealthCheck started.")
 
         try:
             while self._is_running:
                 await self._perform_checks()
-                await asyncio.sleep(self.check_interval)
+                stop_task = asyncio.create_task(self._stop_event.wait())
+                done, _ = await asyncio.wait([stop_task], timeout=self.check_interval)
+
+                if stop_task in done:
+                    # Stop event was triggered; exit loop
+                    break
 
         except asyncio.CancelledError:
             self.logger.info("HealthCheck task cancelled.")
@@ -158,6 +165,7 @@ class HealthCheck:
             return
 
         self._is_running = False
+        self._stop_event.set()
         self.logger.info(f"HealthCheck stopped: {reason}")
 
     async def _handle_start(self, reason: str) -> None:

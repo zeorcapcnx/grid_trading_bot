@@ -64,32 +64,63 @@ async def run_bot(
         logging.error(f"An unexpected error occurred: {e}", exc_info=True)
     
     finally:
-        if bot.trading_mode in {TradingMode.LIVE, TradingMode.PAPER_TRADING}:
-            await cleanup_tasks(vent_bus)
+        try:
+            await event_bus.shutdown()
 
-async def cleanup_tasks(event_bus: EventBus):
+        except Exception as e:
+            logging.error(f"Error during EventBus shutdown: {e}", exc_info=True)
+
+async def cleanup_tasks():
     logging.info("Shutting down bot and cleaning up tasks...")
-    await event_bus.shutdown()
-    tasks = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
 
-    for task in tasks:
+    current_task = asyncio.current_task()
+    tasks_to_cancel = {
+        task for task in asyncio.all_tasks()
+        if task is not current_task and not task.done() and not task.cancelled()
+    }
+
+    logging.info(f"Tasks to cancel: {len(tasks_to_cancel)}")
+
+    for task in tasks_to_cancel:
+        logging.info(f"Task to cancel: {task} - Done: {task.done()} - Cancelled: {task.cancelled()}")
         task.cancel()
 
-    await asyncio.gather(*tasks, return_exceptions=True)
-    logging.info("All tasks have been cleaned up.")
+    try:
+        await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+
+    except asyncio.CancelledError:
+        logging.info("Tasks cancelled successfully.")
+
+    except Exception as e:
+        logging.error(f"Error during task cancellation: {e}", exc_info=True)
 
 if __name__ == "__main__":
     args = parse_and_validate_console_args()
     
     async def main():
-        tasks = [
-            run_bot(config_path, args.profile, args.save_performance_results, args.no_plot)
-            for config_path in args.config
-        ]
-        
-        results = await asyncio.gather(*tasks)
-        if args.save_performance_results:
-            for result in results:
-                save_or_append_performance_results(result, args.save_performance_results)
+        try:
+            tasks = [
+                run_bot(config_path, args.profile, args.save_performance_results, args.no_plot)
+                for config_path in args.config
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for index, result in enumerate(results):
+                if isinstance(result, Exception):
+                    logging.error(
+                        f"Error occurred while running bot for config {args.config[index]}: {result}",
+                        exc_info=True
+                    )
+                else:
+                    if args.save_performance_results:
+                        save_or_append_performance_results(result, args.save_performance_results)
+
+        except Exception as e:
+            logging.error(f"Critical error in main: {e}", exc_info=True)
+
+        finally:
+            await cleanup_tasks()
+            logging.info("All tasks have completed.")
 
     asyncio.run(main())

@@ -54,7 +54,7 @@ class BotController:
         """
         if command == "quit":
             self.logger.info("Stop bot command received")
-            await self.event_bus.publish(Events.STOP_BOT, "User requested shutdown")
+            self.event_bus.publish_sync(Events.STOP_BOT, "User requested shutdown")
         
         elif command == "orders":
             await self._display_orders()

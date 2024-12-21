@@ -88,8 +88,12 @@ class LiveExchangeService(ExchangeInterface):
 
             finally:
                 if not self.connection_active:
-                    self.logger.info(f"Connection to Websocket no longer active.")
-                    await self.exchange.close()
+                    try:
+                        self.logger.info("Connection to Websocket no longer active.")
+                        await self.exchange.close()
+
+                    except Exception as e:
+                        self.logger.error(f"Error while closing WebSocket connection: {e}", exc_info=True)
 
     async def listen_to_ticker_updates(
         self, 
@@ -101,11 +105,11 @@ class LiveExchangeService(ExchangeInterface):
 
     async def close_connection(self) -> None:
         self.connection_active = False
+        self.logger.info("Closing WebSocket connection...")
 
     async def get_balance(self) -> Dict[str, Any]:
         try:
             balance = await self.exchange.fetch_balance()
-            self.logger.info(f"Retrieved balance: {balance}")
             return balance
 
         except BaseError as e:

@@ -52,29 +52,21 @@ class EventBus:
         """
         Publishes an event asynchronously to all subscribers.
         """
-        if event_type in self.subscribers:
-            self.logger.info(f"Publishing async event: {event_type} with data: {data}")
-            tasks = []
+        if event_type not in self.subscribers:
+            self.logger.warning(f"No subscribers for event: {event_type}")
+            return
 
-            for callback in self.subscribers[event_type]:
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        self.logger.info(f"Detected async function: {callback}")
-                        tasks.append(self._safe_invoke_async(callback, data))
-                    elif asyncio.iscoroutine(callback):
-                        self.logger.info(f"Detected coroutine object: {callback}")
-                        tasks.append(callback)
-                    else:
-                        self.logger.info(f"Detected sync function: {callback}")
-                        tasks.append(asyncio.to_thread(self._safe_invoke_sync, callback, data))
-                except Exception as e:
-                    self.logger.error(f"Error preparing callback {callback}: {e}", exc_info=True)
-
-            if tasks:
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                for result in results:
-                    if isinstance(result, Exception):
-                        self.logger.error(f"Exception in async event callback: {result}", exc_info=True)
+        self.logger.info(f"Publishing async event: {event_type} with data: {data}")
+        tasks = [
+            self._safe_invoke_async(callback, data) if asyncio.iscoroutinefunction(callback) 
+            else asyncio.to_thread(self._safe_invoke_sync, callback, data)
+            for callback in self.subscribers[event_type]
+        ]
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    self.logger.error(f"Exception in async event callback: {result}", exc_info=True)
 
     def publish_sync(self, event_type: str, data: Any) -> None:
         """
@@ -85,10 +77,7 @@ class EventBus:
             loop = asyncio.get_event_loop()
             for callback in self.subscribers[event_type]:
                 if asyncio.iscoroutinefunction(callback):
-                    if loop.is_running():
-                        asyncio.run_coroutine_threadsafe(self._safe_invoke_async(callback, data), loop)
-                    else:
-                        loop.run_until_complete(self._safe_invoke_async(callback, data))
+                    asyncio.run_coroutine_threadsafe(self._safe_invoke_async(callback, data), loop)
                 else:
                     self._safe_invoke_sync(callback, data)
 
@@ -96,11 +85,16 @@ class EventBus:
         """
         Safely invokes an async callback, suppressing and logging any exceptions.
         """
+        task = asyncio.create_task(self._invoke_callback(callback, data))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+    
+    async def _invoke_callback(self, callback: Callable[[Any], None], data: Any) -> None:
         try:
-            self.logger.info(f"Executing async callback: {callback}")
+            self.logger.info(f"Executing async callback '{callback.__name__}' for event with data: {data}")
             await callback(data)
         except Exception as e:
-            self.logger.error(f"Error in async subscriber callback: {e}", exc_info=True)
+            self.logger.error(f"Error in async callback '{callback.__name__}': {e}", exc_info=True)
 
     def _safe_invoke_sync(self, callback: Callable[[Any], None], data: Any) -> None:
         """

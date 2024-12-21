@@ -134,18 +134,10 @@ class GridTradingBot:
             self.is_running = False
 
     async def _handle_stop_bot_event(self, reason: str) -> None:
-        if not self.is_running:
-            self.logger.warning(f"Stop event received but bot is already stopped: {reason}")
-            return
-
         self.logger.info(f"Handling STOP_BOT event: {reason}")
         await self._stop()
 
     async def _handle_start_bot_event(self, reason: str) -> None:
-        if self.is_running:
-            self.logger.warning(f"Start event received but bot is already running: {reason}")
-            return
-
         self.logger.info(f"Handling START_BOT event: {reason}")
         await self.restart()
     
@@ -164,7 +156,6 @@ class GridTradingBot:
         except Exception as e:
             self.logger.error(f"Error while stopping components: {e}", exc_info=True)
 
-        self.event_bus.publish_sync(Events.STOP_BOT, "Bot stopped")
         self.logger.info("Grid Trading Bot has been stopped.")
     
     async def restart(self) -> None:
