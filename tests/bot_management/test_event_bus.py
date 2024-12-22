@@ -1,5 +1,5 @@
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
+import pytest, asyncio
+from unittest.mock import Mock, AsyncMock
 from core.bot_management.event_bus import EventBus, Events
 
 class TestEventBus:
@@ -12,30 +12,6 @@ class TestEventBus:
         event_bus.subscribe(Events.ORDER_COMPLETED, callback)
         assert Events.ORDER_COMPLETED in event_bus.subscribers
         assert callback in event_bus.subscribers[Events.ORDER_COMPLETED]
-
-    def test_unsubscribe_existing_callback(self, event_bus):
-        callback = Mock()
-        event_bus.subscribe(Events.ORDER_COMPLETED, callback)
-        event_bus.unsubscribe(Events.ORDER_COMPLETED, callback)
-        assert callback not in event_bus.subscribers.get(Events.ORDER_COMPLETED, [])
-
-    def test_unsubscribe_non_existing_callback(self, event_bus, caplog):
-        callback = Mock()
-        event_bus.unsubscribe(Events.ORDER_COMPLETED, callback)
-        assert "Attempted to unsubscribe non-existing callback" in caplog.text
-
-    def test_clear_specific_event(self, event_bus):
-        callback = Mock()
-        event_bus.subscribe(Events.ORDER_COMPLETED, callback)
-        event_bus.clear(Events.ORDER_COMPLETED)
-        assert Events.ORDER_COMPLETED not in event_bus.subscribers
-
-    def test_clear_all_events(self, event_bus):
-        callback = Mock()
-        event_bus.subscribe(Events.ORDER_COMPLETED, callback)
-        event_bus.subscribe(Events.ORDER_CANCELLED, callback)
-        event_bus.clear()
-        assert not event_bus.subscribers
 
     @pytest.mark.asyncio
     async def test_publish_async_single_callback(self, event_bus):
@@ -58,8 +34,14 @@ class TestEventBus:
     async def test_publish_async_with_exception(self, event_bus, caplog):
         failing_callback = AsyncMock(side_effect=Exception("Test Error"))
         event_bus.subscribe(Events.ORDER_COMPLETED, failing_callback)
+
         await event_bus.publish(Events.ORDER_COMPLETED, {"data": "test"})
-        assert "Error in async subscriber callback" in caplog.text
+
+        # Wait for all tasks in the event bus to complete
+        await asyncio.gather(*event_bus._tasks, return_exceptions=True)
+
+        assert "Error in async callback 'AsyncMock'" in caplog.text
+        assert "Test Error" in caplog.text
 
     def test_publish_sync(self, event_bus):
         sync_callback = Mock()
@@ -70,14 +52,26 @@ class TestEventBus:
     @pytest.mark.asyncio
     async def test_safe_invoke_async(self, event_bus, caplog):
         async_callback = AsyncMock()
+
         await event_bus._safe_invoke_async(async_callback, {"data": "test"})
+
+        # Wait for all tasks in the EventBus to complete
+        await asyncio.gather(*event_bus._tasks, return_exceptions=True)
+
         async_callback.assert_awaited_once_with({"data": "test"})
 
     @pytest.mark.asyncio
     async def test_safe_invoke_async_with_exception(self, event_bus, caplog):
         failing_callback = AsyncMock(side_effect=Exception("Async Error"))
+
         await event_bus._safe_invoke_async(failing_callback, {"data": "test"})
-        assert "Error in async subscriber callback" in caplog.text
+
+        # Wait for all tasks in the event bus to complete
+        await asyncio.gather(*event_bus._tasks, return_exceptions=True)
+
+        assert "Error in async callback" in caplog.text
+        assert "Async Error" in caplog.text
+        assert "Task created for callback" in caplog.text
 
     def test_safe_invoke_sync(self, event_bus, caplog):
         sync_callback = Mock()

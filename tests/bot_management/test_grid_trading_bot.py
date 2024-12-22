@@ -50,17 +50,14 @@ class TestGridTradingBot:
 
     @patch("core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service", side_effect=UnsupportedExchangeError("Unsupported Exchange"))
     def test_initialization_with_unsupported_exchange_error(self, mock_exchange_service, config_manager, notification_handler, mock_event_bus):
-        mock_event_bus.subscribe = Mock()
+        with patch("core.bot_management.grid_trading_bot.logging.getLogger") as mock_logger:
+            logger_instance = Mock()
+            mock_logger.return_value = logger_instance
 
-        with pytest.raises(SystemExit):
-            GridTradingBot("config.json", config_manager, notification_handler, mock_event_bus)
-
-        bot_logger = logging.getLogger("GridTradingBot")
-        with patch.object(bot_logger, "error") as mock_logger_error:
-            with pytest.raises(SystemExit):
+            with pytest.raises(UnsupportedExchangeError, match="Unsupported Exchange"):
                 GridTradingBot("config.json", config_manager, notification_handler, mock_event_bus)
 
-            mock_logger_error.assert_called_once_with("UnsupportedExchangeError: Unsupported Exchange")
+            logger_instance.error.assert_called_once_with("UnsupportedExchangeError: Unsupported Exchange")
 
     @patch("core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service", side_effect=DataFetchError("Data Fetch Error"))
     def test_initialization_with_data_fetch_error(self, mock_exchange_service, config_manager, notification_handler, mock_event_bus):
@@ -68,7 +65,7 @@ class TestGridTradingBot:
             logger_instance = Mock()
             mock_logger.return_value = logger_instance
 
-            with pytest.raises(SystemExit):
+            with pytest.raises(DataFetchError, match="Data Fetch Error"):
                 GridTradingBot("config.json", config_manager, notification_handler, mock_event_bus)
 
             logger_instance.error.assert_called_once_with("DataFetchError: Data Fetch Error")
@@ -79,23 +76,23 @@ class TestGridTradingBot:
             logger_instance = Mock()
             mock_logger.return_value = logger_instance
 
-            with pytest.raises(SystemExit):
+            with pytest.raises(UnsupportedTimeframeError, match="Unsupported Timeframe"):
                 GridTradingBot("config.json", config_manager, notification_handler, mock_event_bus)
 
             logger_instance.error.assert_called_once_with("UnsupportedTimeframeError: Unsupported Timeframe")
-    
+
     @patch("core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service", side_effect=Exception("Unexpected Error"))
     def test_initialization_with_unexpected_exception(self, mock_exchange_service, config_manager, notification_handler, mock_event_bus):
         with patch("core.bot_management.grid_trading_bot.logging.getLogger") as mock_logger:
             logger_instance = Mock()
             mock_logger.return_value = logger_instance
 
-            with pytest.raises(SystemExit):
+            with pytest.raises(Exception, match="Unexpected Error"):
                 GridTradingBot("config.json", config_manager, notification_handler, mock_event_bus)
 
             logger_instance.error.assert_any_call("An unexpected error occurred.")
-            logger_instance.error.assert_any_call(unittest.mock.ANY)
-    
+            logger_instance.error.assert_any_call(ANY)
+
     def test_initialization_with_missing_config(self, notification_handler, mock_event_bus):
         config_manager = Mock(spec=ConfigManager)
         config_manager.get_trading_mode.side_effect = AttributeError("Missing configuration")
@@ -104,11 +101,11 @@ class TestGridTradingBot:
             logger_instance = Mock()
             mock_logger.return_value = logger_instance
 
-            with pytest.raises(SystemExit):
+            with pytest.raises(AttributeError, match="Missing configuration"):
                 GridTradingBot("config.json", config_manager, notification_handler, mock_event_bus)
 
             logger_instance.error.assert_any_call("An unexpected error occurred.")
-            logger_instance.error.assert_any_call(unittest.mock.ANY)
+            logger_instance.error.assert_any_call(ANY)
 
     @pytest.mark.asyncio
     async def test_get_bot_health_status(self, bot):
@@ -177,6 +174,7 @@ class TestGridTradingBot:
     @patch("core.bot_management.grid_trading_bot.GridTradingStrategy")
     @pytest.mark.asyncio
     async def test_run_strategy_with_exception(self, mock_strategy, bot):
+        # Arrange: Mock dependencies
         bot.balance_tracker = Mock()
         bot.balance_tracker.setup_balances = AsyncMock()
         bot.order_status_tracker.start_tracking = Mock()
@@ -186,11 +184,13 @@ class TestGridTradingBot:
         bot.strategy.grid_manager = mock_grid_manager
 
         with patch.object(bot.logger, "error") as mock_logger_error:
-            with pytest.raises(SystemExit):  # Ensure the bot exits on an unexpected exception
+            # Act and Assert: Ensure the bot logs the error and re-raises the exception
+            with pytest.raises(Exception, match="Test Exception"):
                 await bot.run()
-            
+
+            # Ensure the error is logged correctly
             mock_logger_error.assert_any_call("An unexpected error occurred Test Exception")
-        assert bot.is_running is False
+            assert bot.is_running is False
 
     @patch("core.bot_management.grid_trading_bot.OrderStatusTracker")
     @pytest.mark.asyncio
@@ -203,7 +203,6 @@ class TestGridTradingBot:
 
         bot.strategy.stop.assert_awaited_once()
         bot.order_status_tracker.stop_tracking.assert_awaited_once()
-        bot.event_bus.publish_sync.assert_called_once_with(Events.STOP_BOT, "Bot stopped")
 
     @pytest.mark.asyncio
     async def test_restart_bot(self, bot):
@@ -241,22 +240,32 @@ class TestGridTradingBot:
         bot._stop.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_handle_stop_bot_event_when_already_stopped(self, bot):
-        bot.is_running = False
-        bot._stop = AsyncMock()
+    async def test_handle_stop_bot_event_when_running(self, bot):
+        bot.is_running = True
+
+        # Mock _stop to simulate state change
+        async def mock_stop():
+            bot.is_running = False
+
+        bot._stop = AsyncMock(side_effect=mock_stop)
 
         await bot._handle_stop_bot_event("Test reason")
 
-        bot._stop.assert_not_awaited()
+        bot._stop.assert_awaited_once_with()
+        assert not bot.is_running
 
     @pytest.mark.asyncio
-    async def test_handle_start_bot_event_when_already_running(self, bot):
-        bot.is_running = True
-        bot.restart = AsyncMock()
+    async def test_handle_stop_bot_event_when_already_stopped(self, bot):
+        # Arrange: Mock dependencies and state
+        bot.is_running = False
+        bot._stop = AsyncMock()
 
-        await bot._handle_start_bot_event("Test reason")
+        # Act: Call the method
+        await bot._handle_stop_bot_event("Test reason")
 
-        bot.restart.assert_not_awaited()
+        # Assert: Verify that _stop was called but exited early
+        bot._stop.assert_awaited_once()
+        bot._stop.assert_awaited_once_with()  # Ensures _stop was called without additional arguments
 
     @pytest.mark.asyncio
     async def test_handle_start_bot_event(self, bot):

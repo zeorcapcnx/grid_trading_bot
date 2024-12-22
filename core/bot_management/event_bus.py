@@ -68,7 +68,11 @@ class EventBus:
                 if isinstance(result, Exception):
                     self.logger.error(f"Exception in async event callback: {result}", exc_info=True)
 
-    def publish_sync(self, event_type: str, data: Any) -> None:
+    def publish_sync(
+        self, 
+        event_type: str, 
+        data: Any
+    ) -> None:
         """
         Publishes an event synchronously to all subscribers.
         """
@@ -81,22 +85,40 @@ class EventBus:
                 else:
                     self._safe_invoke_sync(callback, data)
 
-    async def _safe_invoke_async(self, callback: Callable[[Any], None], data: Any) -> None:
+    async def _safe_invoke_async(
+        self, 
+        callback: Callable[[Any], None], 
+        data: Any
+    ) -> None:
         """
         Safely invokes an async callback, suppressing and logging any exceptions.
         """
         task = asyncio.create_task(self._invoke_callback(callback, data))
         self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
+
+        def remove_task(completed_task: asyncio.Task):
+            if not completed_task.cancelled():
+                self._tasks.discard(completed_task)
+
+        task.add_done_callback(remove_task)
+        self.logger.debug(f"Task created for callback '{callback.__name__}' with data: {data}")
     
-    async def _invoke_callback(self, callback: Callable[[Any], None], data: Any) -> None:
+    async def _invoke_callback(
+        self, 
+        callback: Callable[[Any], None], 
+        data: Any
+    ) -> None:
         try:
             self.logger.info(f"Executing async callback '{callback.__name__}' for event with data: {data}")
             await callback(data)
         except Exception as e:
             self.logger.error(f"Error in async callback '{callback.__name__}': {e}", exc_info=True)
 
-    def _safe_invoke_sync(self, callback: Callable[[Any], None], data: Any) -> None:
+    def _safe_invoke_sync(
+        self, 
+        callback: Callable[[Any], None], 
+        data: Any
+    ) -> None:
         """
         Safely invokes a sync callback, suppressing and logging any exceptions.
         """
