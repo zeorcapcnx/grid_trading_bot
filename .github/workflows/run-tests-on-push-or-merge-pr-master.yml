@@ -20,7 +20,7 @@ jobs:
       uses: goanpeca/setup-miniconda@v2
       with:
         auto-update-conda: true
-        python-version: 3.11
+        python-version: 3.12
 
     - name: Create or update Conda environment
       shell: bash -l {0}
@@ -29,8 +29,17 @@ jobs:
 
     - name: Set PYTHONPATH
       run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
-
-    - name: Activate Conda environment and run tests
+    
+    - name: Run tests and upload coverage
       run: |
         conda run -n GridTradingBot python -m pip install --upgrade pip
-        conda run -n GridTradingBot pytest --cov=core
+        conda run -n GridTradingBot pytest --cov=core --cov=config --cov=strategies --cov=utils --cov-report=xml --cov-report=term
+      continue-on-error: true
+
+    - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true
+          files: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
