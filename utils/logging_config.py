@@ -1,7 +1,6 @@
 import logging, os
 from logging.handlers import RotatingFileHandler
 from typing import Optional
-from datetime import datetime
 
 def setup_logging(
     log_level: int,
@@ -35,8 +34,6 @@ def setup_logging(
             log_file_path = os.path.join(log_dir, f"{config_name}.log")
         else:
             log_file_path = os.path.join(log_dir, 'grid_trading_bot.log')
-
-        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
 
         file_handler = RotatingFileHandler(log_file_path, maxBytes=max_file_size, backupCount=backup_count)
         file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))

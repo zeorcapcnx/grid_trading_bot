@@ -8,7 +8,7 @@ from ..grid_management.grid_manager import GridManager
 from ..grid_management.grid_level import GridLevel
 from ..validation.order_validator import OrderValidator
 from core.bot_management.event_bus import EventBus, Events
-from .execution_strategy.order_execution_strategy import OrderExecutionStrategy
+from .execution_strategy.order_execution_strategy_interface import OrderExecutionStrategyInterface
 from core.bot_management.notification.notification_handler import NotificationHandler
 from core.bot_management.notification.notification_content import NotificationType
 from strategies.strategy_type import StrategyType
@@ -23,7 +23,7 @@ class OrderManager:
         balance_tracker: BalanceTracker, 
         order_book: OrderBook,
         event_bus: EventBus,
-        order_execution_strategy: OrderExecutionStrategy,
+        order_execution_strategy: OrderExecutionStrategyInterface,
         notification_handler: NotificationHandler,
         trading_mode: TradingMode,
         trading_pair: str,

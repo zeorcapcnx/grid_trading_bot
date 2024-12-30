@@ -3,10 +3,10 @@ from typing import Optional
 from ..order import Order, OrderType, OrderSide, OrderStatus
 from core.services.exchange_interface import ExchangeInterface
 from core.services.exceptions import DataFetchError
-from .order_execution_strategy import OrderExecutionStrategy
+from .order_execution_strategy_interface import OrderExecutionStrategyInterface
 from ..exceptions import OrderExecutionFailedError
 
-class LiveOrderExecutionStrategy(OrderExecutionStrategy):
+class LiveOrderExecutionStrategy(OrderExecutionStrategyInterface):
     def __init__(
         self, 
         exchange_service: ExchangeInterface, 

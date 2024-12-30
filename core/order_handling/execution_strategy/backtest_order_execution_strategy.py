@@ -1,9 +1,9 @@
 import time
 from typing import Optional
 from ..order import Order, OrderSide, OrderType, OrderStatus
-from .order_execution_strategy import OrderExecutionStrategy
+from .order_execution_strategy_interface import OrderExecutionStrategyInterface
 
-class BacktestOrderExecutionStrategy(OrderExecutionStrategy):
+class BacktestOrderExecutionStrategy(OrderExecutionStrategyInterface):
     async def execute_market_order(
         self, 
         order_side: OrderSide, 

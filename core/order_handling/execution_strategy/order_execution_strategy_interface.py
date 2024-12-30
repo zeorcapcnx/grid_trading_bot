@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from ..order import Order, OrderSide
 
-class OrderExecutionStrategy(ABC):
+class OrderExecutionStrategyInterface(ABC):
     @abstractmethod
     async def execute_market_order(
         self, 
