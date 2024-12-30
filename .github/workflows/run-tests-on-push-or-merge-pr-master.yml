@@ -33,7 +33,7 @@ jobs:
     - name: Run tests and upload coverage
       run: |
         conda run -n GridTradingBot python -m pip install --upgrade pip
-        conda run -n GridTradingBot pytest --cov=core --cov=config --cov=strategies --cov=utils --cov-report=xml --cov-report=term
+        conda run -n GridTradingBot pytest --cov=core --cov=config --cov=strategies --cov=utils --cov-report=xml:coverage.xml --cov-report=term --cov-config=pytest.ini     
       continue-on-error: true
 
     - name: Upload coverage reports to Codecov
