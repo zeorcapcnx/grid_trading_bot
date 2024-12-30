@@ -6,26 +6,59 @@
 
 Open-source Grid Trading Bot implemented in Python, allowing you to backtest and execute grid trading strategies on cryptocurrency markets. The bot is highly customizable and works with various exchanges using the CCXT library.
 
+## 📚 Table of Contents
+
+- [Grid Trading Bot](#grid-trading-bot)
+- [Features](#features)
+- [🤔 What is Grid Trading?](#-what-is-grid-trading)
+  - [🔢 Arithmetic Grid Trading](#-arithmetic-grid-trading)
+  - [📐 Geometric Grid Trading](#-geometric-grid-trading)
+  - [📅 When to Use Each Type?](#-when-to-use-each-type)
+  - [🆚 Simple Grid vs. Hedged Grid Strategies](#-simple-grid-vs-hedged-grid-strategies)
+- [🖥️ Installation](#️-installation)
+  - [Prerequisites](#prerequisites)
+  - [Setting Up the Environment](#setting-up-the-environment)
+- [📋 Configuration](#-configuration)
+  - [Example Configuration File](#example-configuration-file)
+  - [Parameters](#parameters)
+  - [Environment Variables (.env)](#environment-variables-env)
+- [🏃 Running the Bot](#-running-the-bot)
+  - [Basic Usage](#basic-usage)
+  - [Multiple Configurations](#multiple-configurations)
+  - [Saving Performance Results](#saving-performance-results)
+  - [Disabling Plots](#disabling-plots)
+  - [Combining Options](#combining-options)
+- [📊 Docker Compose for Logs Management](#-docker-compose-for-logs-management)
+  - [Steps to Set Up](#steps-to-set-up)
+- [🤝 Contributing](#-contributing)
+  - [Reporting Issues](#reporting-issues)
+- [💸 Donations](#-donations)
+- [📜 License](#-license)
+- [🚨 Disclaimer](#-disclaimer)
+
 ## Features
 
 - **Backtesting**: Simulate your grid trading strategy using historical data.
-- **Grid Trading**: Automatically place buy and sell orders based on grid levels.
-- **Customizable Grid Settings**: Define grid levels, spacing type, and more.
-- **Support for Multiple Exchanges**: Load data and execute trades on multiple exchanges via CCXT.
-- **Take Profit & Stop Loss**: Set take profit and stop loss thresholds to manage risk.
-- **Performance Metrics**: Track key metrics like ROI, drawdown, run-up, and more.
-- **Detailed Configuration**: Configure the bot’s behavior through a JSON file.
-- **Logging**: Monitor bot activity and debug effectively with detailed logs.
+- **Live Trading**: Execute trades on live markets using real funds, supported by robust configurations and risk management.
+- **Paper Trading**: Test strategies in a simulated live market environment without risking actual funds.
+- **Multiple Grid Trading Strategies**: Implement different grid trading strategies to match market conditions.
+- **Customizable Configurations**: Use a JSON file to define grid levels, strategies, and risk settings.
+- **Support for Multiple Exchanges**: Seamless integration with multiple cryptocurrency exchanges via the CCXT library.
+- **Take Profit & Stop Loss**: Safeguard your investments with configurable take profit and stop loss thresholds.
+- **Performance Metrics**: Gain insights with comprehensive metrics like ROI, max drawdown, run-up, and more.
+- **HealthCheck**: Continuously monitor the bot’s performance and system resource usage to ensure stability.
+- **CLI BotController**: Control and interact with the bot in real time using intuitive commands.
+- **Logging with Grafana**: Centralized logging system for monitoring bot activity and debugging, enhanced with visual dashboards.
 
-## What is Grid Trading?
+## 🤔 What is Grid Trading?
 
 Grid trading is a trading strategy that places buy and sell orders at predefined intervals above and below a set price. The goal is to capitalize on market volatility by buying low and selling high at different price points. There are two primary types of grid trading: **arithmetic** and **geometric**.
 
-### **Arithmetic Grid Trading**
+### 🔢 **Arithmetic Grid Trading**
 
 In an arithmetic grid, the grid levels (price intervals) are spaced **equally**. The distance between each buy and sell order is constant, providing a more straightforward strategy for fluctuating markets.
 
-#### **Simple Example**
+#### **Example**
 
 Suppose the price of a cryptocurrency is $3000, and you set up a grid with the following parameters:
 
@@ -35,7 +68,7 @@ Suppose the price of a cryptocurrency is $3000, and you set up a grid with the f
 
 As the price fluctuates, the bot will automatically execute buy orders as the price decreases and sell orders as the price increases. This method profits from small, predictable price fluctuations, as the intervals between buy/sell orders are consistent (in this case, $50).
 
-### **Geometric Grid Trading**
+### 📐 **Geometric Grid Trading**
 
 In a geometric grid, the grid levels are spaced **proportionally** or by a percentage. The intervals between price levels increase or decrease exponentially based on a set percentage, making this grid type more suited for assets with higher volatility.
 
@@ -49,12 +82,18 @@ Suppose the price of a cryptocurrency is $3000, and you set up a geometric grid 
 
 As the price fluctuates, buy orders are executed at lower levels and sell orders at higher levels, but the grid is proportional. This strategy is better for markets that experience exponential price movements.
 
-### **When to Use Each Type?**
+### 📅 **When to Use Each Type?**
 
 - **Arithmetic grids** are ideal for assets with more stable, linear price fluctuations.
 - **Geometric grids** are better for assets with significant, unpredictable volatility, as they adapt more flexibly to market swings.
 
-## Installation
+
+### 🆚 Simple Grid vs. Hedged Grid Strategies
+
+- **Simple Grid**: Independent buy and sell grids. Profits from each grid level are standalone.
+- **Hedged Grid**: Pairs buy and sell levels dynamically, balancing risk and reward for higher volatility markets.
+
+## 🖥️ Installation
 
 ### Prerequisites
 
@@ -78,15 +117,17 @@ Ensure you have [Conda](https://docs.conda.io/projects/conda/en/latest/user-guid
   conda activate grid_trading_bot
   ```
 
-### Configuration
+## 📋 Configuration
 
-Configure the bot by editing the `config/config.json` file to your needs. Here is an example configuration:
+The bot is configured via a JSON file `config/config.json` to suit your trading needs, alongside a `.env` file to securely store sensitive credentials and environment variables. Below is an example configuration file and a breakdown of all parameters.
 
+### **Example Configuration File**
 ```json
 {
   "exchange": {
     "name": "binance",
-    "trading_fee": 0.001
+    "trading_fee": 0.001,
+    "trading_mode": "backtest"
   },
   "pair": {
     "base_currency": "SOL",
@@ -102,24 +143,22 @@ Configure the bot by editing the `config/config.json` file to your needs. Here i
     "historical_data_file": "data/SOL_USDT/2024/1m.csv"
   },
   "grid_strategy": {
-    "num_grids": 15,
+    "type": "simple_grid",
+    "spacing": "geometric",
+    "num_grids": 8,
     "range": {
-      "top": 130,
-      "bottom": 120
-    },
-    "spacing": {
-      "type": "geometric",
-      "percentage_spacing": 0.05
+      "top": 200,
+      "bottom": 250
     }
   },
   "risk_management": {
     "take_profit": {
       "enabled": false,
-      "threshold": 200
+      "threshold": 300
     },
     "stop_loss": {
       "enabled": false,
-      "threshold": 110
+      "threshold": 150
     }
   },
   "logging": {
@@ -129,11 +168,12 @@ Configure the bot by editing the `config/config.json` file to your needs. Here i
 }
 ```
 
-## Parameters
+### **Parameters**
 
 - **exchange**: Defines the exchange and trading fee to be used.
   - **name**: The name of the exchange (e.g., binance).
   - **trading_fee**: The trading fee should be in decimal format (e.g., 0.001 for 0.1%).
+  - **trading_mode**: The trading mode of operation (backtest, live or paper trading).
 
 - **pair**: Specifies the trading pair.
   - **base_currency**: The base currency (e.g., ETH).
@@ -148,14 +188,16 @@ Configure the bot by editing the `config/config.json` file to your needs. Here i
   - **historical_data_file**: Path to a local historical data file for offline testing (optional).
 
 - **grid_strategy**: Defines the grid trading parameters.
-  - **num_grids**: The number of grid levels.
+  - **type**: Type of grid strategy:
+    - **simple_grid**: Independent buy/sell levels.
+    - **hedged_grid**: Dynamically paired buy/sell levels for risk balancing.
+  - **spacing**: Grid spacing type:
+    - **arithmetic**: Equal price intervals.
+    - **geometric**: Proportional price intervals based on percentage.
+  - **num_grids**: The total number of grid levels.
   - **range**: Defines the price range of the grid.
     - **top**: The upper price limit of the grid.
     - **bottom**: The lower price limit of the grid.
-  - **spacing**: Defines the grid spacing type and parameters.
-    - **type**: Type of spacing (`arithmetic` or `geometric`).
-    - **grid_spacing**: The spacing between grids (used for arithmetic spacing).
-    - **percentage_spacing**: Percentage spacing between grids (used for geometric spacing).
   
 - **risk_management**: Configurations for risk management.
   - **take_profit**: Settings for taking profit.
@@ -169,7 +211,32 @@ Configure the bot by editing the `config/config.json` file to your needs. Here i
   - **log_level**: The logging level (e.g., `INFO`, `DEBUG`).
   - **log_to_file**: Enables logging to a file.
 
-## Running the Bot
+### **Environment Variables (.env)**
+
+The `.env` file securely stores sensitive data like API keys and credentials. Below is an example:
+
+```
+# Exchange API credentials
+EXCHANGE_API_KEY=YourExchangeAPIKeyHere
+EXCHANGE_SECRET_KEY=YourExchangeSecretKeyHere
+
+# Notification URLs for Apprise
+APPRISE_NOTIFICATION_URLS=
+
+# Grafana Admin Access
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=YourGrafanaPasswordHere
+```
+
+**Environment Variables Breakdown**
+
+- EXCHANGE_API_KEY: Your API key for the exchange.
+- EXCHANGE_SECRET_KEY: Your secret key for the exchange.
+- APPRISE_NOTIFICATION_URLS: URLs for notifications (e.g., Telegram bot, Discord Server). For detailed setup instructions, visit the [Apprise GitHub repository](https://github.com/caronc/apprise).
+- GRAFANA_ADMIN_USER: Admin username for Grafana.
+- GRAFANA_ADMIN_PASSWORD: Admin password for Grafana.
+
+## 🏃 Running the Bot
 
 To run the bot, use the following command:
 
@@ -202,7 +269,38 @@ You can combine multiple options to customize how the bot runs. For example:
   grid_trading_bot --config config/config1.json config/config2.json --save_performance_results combined_results.json --no-plot
   ```
 
-## Contributing
+## 📊 Docker Compose for Logs Management
+
+A `docker-compose.yml` file is included to set up centralized logging using Grafana, Loki, and Promtail. This allows you to monitor and analyze the bot's logs efficiently.
+
+### Steps to Set Up:
+
+1. **Ensure Docker and Docker Compose Are Installed**  
+  Verify that Docker and Docker Compose are installed on your system. If not, follow the official [Docker installation guide](https://docs.docker.com/get-docker/).
+
+
+2. **Start the Services**  
+  Run the following command to spin up Grafana, Loki, and Promtail:
+
+  ```sh
+  docker-compose up -d
+  ```
+
+
+3. **Access Grafana Dashboards**
+  
+  Navigate to http://localhost:3000 in your browser to access the Grafana dashboard.
+  Use the following default credentials to log in:
+
+	- Username: admin
+	- Password: YourGrafanaPasswordHere (as defined in the .env file)
+
+4. **Import Dashboards**
+
+  Go to the Dashboards section in Grafana and click Import. Use the provided JSON file for predefined dashboards. This file can be found in the project directory: ```grafana/dashboards/grid_trading_bot_dashboard.json```
+
+
+## 🤝 Contributing
 
 Contributions are welcome! If you have suggestions or want to improve the bot, feel free to fork the repository and submit a pull request.
 
@@ -210,7 +308,7 @@ Contributions are welcome! If you have suggestions or want to improve the bot, f
 
 If you encounter any issues or have feature requests, please create a new issue on the [GitHub Issues](https://github.com/pownedjojo/grid_trading_bot/issues) page.
 
-## Donations
+## 💸 Donations
 
 If you find this project helpful and would like to support its development, consider buying me a coffee! Your support is greatly appreciated and motivates me to continue improving and adding new features.
 
@@ -218,10 +316,10 @@ If you find this project helpful and would like to support its development, cons
 
 Thank you for your support!
 
-## License
+## 📜 License
 
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE.txt) file for more details.
 
-## Disclaimer
+## 🚨 Disclaimer
 
 This project is intended for educational purposes only. The authors and contributors are not responsible for any financial losses incurred while using this bot. Trading cryptocurrencies involves significant risk and can result in the loss of all invested capital. Please do your own research and consult with a licensed financial advisor before making any trading decisions. Use this software at your own risk.
