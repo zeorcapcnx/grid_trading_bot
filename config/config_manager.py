@@ -7,10 +7,10 @@ from .exceptions import ConfigFileNotFoundError, ConfigParseError
 
 class ConfigManager:
     def __init__(self, config_file, config_validator):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.config_file = config_file
         self.config_validator = config_validator
         self.config = None
-        self.logger = logging.getLogger(self.__class__.__name__)
         self.load_config()
 
     def load_config(self):

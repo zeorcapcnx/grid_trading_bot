@@ -8,8 +8,8 @@ from .exceptions import UnsupportedExchangeError, DataFetchError, UnsupportedTim
 
 class BacktestExchangeService(ExchangeInterface):
     def __init__(self, config_manager: ConfigManager):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.config_manager = config_manager
-        self.logger = logging.getLogger(__name__)
         self.historical_data_file = self.config_manager.get_historical_data_file()
         self.exchange_name = self.config_manager.get_exchange_name()
         self.exchange = self._initialize_exchange()
@@ -179,3 +179,6 @@ class BacktestExchangeService(ExchangeInterface):
 
     async def get_exchange_status(self) -> dict:
         raise NotImplementedError("get_exchange_status is not used in backtesting")
+    
+    async def close_connection(self) -> None:
+        self.logger.info("[BACKTEST] Closing WebSocket connection...")

@@ -19,7 +19,8 @@ def valid_config():
             "period": {
                 "start_date": "2024-07-04T00:00:00Z",
                 "end_date": "2024-07-11T00:00:00Z"
-            }
+            },
+            "historical_data_file": "data/SOL_USDT/2024/1m.csv"
         },
         "grid_strategy": {
             "type": "simple_grid",

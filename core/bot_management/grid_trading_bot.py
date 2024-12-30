@@ -30,6 +30,7 @@ class GridTradingBot:
         no_plot: bool = False
     ):
         try:
+            self.logger = logging.getLogger(self.__class__.__name__)
             self.config_path = config_path
             self.config_manager = config_manager
             self.notification_handler = notification_handler
@@ -38,7 +39,6 @@ class GridTradingBot:
             self.event_bus.subscribe(Events.START_BOT, self._handle_start_bot_event)
             self.save_performance_results_path = save_performance_results_path
             self.no_plot = no_plot
-            self.logger = logging.getLogger(self.__class__.__name__)
             self.trading_mode: TradingMode = self.config_manager.get_trading_mode()
             base_currency: str = self.config_manager.get_base_currency()
             quote_currency: str = self.config_manager.get_quote_currency()

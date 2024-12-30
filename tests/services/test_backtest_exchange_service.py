@@ -1,13 +1,14 @@
 import pytest
 import pandas as pd
 from unittest.mock import Mock, patch
+from config.config_manager import ConfigManager
 from core.services.backtest_exchange_service import BacktestExchangeService
-from core.services.exceptions import UnsupportedExchangeError, DataFetchError, UnsupportedTimeframeError, HistoricalMarketDataFileNotFoundError, UnsupportedPairError
+from core.services.exceptions import UnsupportedExchangeError, UnsupportedTimeframeError, HistoricalMarketDataFileNotFoundError, UnsupportedPairError
 
 class TestBacktestExchangeService:
     @pytest.fixture
     def config_manager(self):
-        mock_config = Mock()
+        mock_config = Mock(spec=ConfigManager)
         mock_config.get_exchange_name.return_value = "binance"
         mock_config.get_historical_data_file.return_value = "data/test_data.csv"
         return mock_config
@@ -177,3 +178,11 @@ class TestBacktestExchangeService:
 
         with pytest.raises(NotImplementedError, match="get_exchange_status is not used in backtesting"):
             await service.get_exchange_status()
+    
+    @pytest.mark.asyncio
+    async def test_close_connection(self, config_manager):
+        service = BacktestExchangeService(config_manager)
+        
+        with patch.object(service, 'logger') as mock_logger:
+            await service.close_connection()
+            mock_logger.info.assert_called_once_with("[BACKTEST] Closing WebSocket connection...")

@@ -6,34 +6,34 @@ from core.order_handling.order import Order, OrderType, OrderSide, OrderStatus
 from core.grid_management.grid_level import GridLevel
 from strategies.trading_performance_analyzer import TradingPerformanceAnalyzer
 
-@pytest.fixture
-def setup_performance_analyzer():
-    config_manager = Mock()
-    config_manager.get_initial_balance.return_value = 10000
-    config_manager.get_base_currency.return_value = "BTC"
-    config_manager.get_quote_currency.return_value = "USDT"
-    config_manager.get_trading_fee.return_value = 0.001
-    order_book = Mock()
-    analyzer = TradingPerformanceAnalyzer(config_manager, order_book)
-    return analyzer, config_manager, order_book
-
-@pytest.fixture
-def mock_account_data():
-    data = pd.DataFrame({
-        "close": [100, 105, 110, 90, 95],
-        "account_value": [10000, 10250, 10500, 9500, 9800]
-    }, index=pd.to_datetime(['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']))
-    return data
-
 class TestPerformanceAnalyzer:
+    @pytest.fixture
+    def setup_performance_analyzer(self):
+        config_manager = Mock()
+        config_manager.get_initial_balance.return_value = 10000
+        config_manager.get_base_currency.return_value = "BTC"
+        config_manager.get_quote_currency.return_value = "USDT"
+        config_manager.get_trading_fee.return_value = 0.001
+        order_book = Mock()
+        analyzer = TradingPerformanceAnalyzer(config_manager, order_book)
+        return analyzer, config_manager, order_book
+
+    @pytest.fixture
+    def mock_account_data(self):
+        data = pd.DataFrame({
+            "close": [100, 105, 110, 90, 95],
+            "account_value": [10000, 10250, 10500, 9500, 9800]
+        }, index=pd.to_datetime(['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']))
+        return data
+
     def test_calculate_roi(self, setup_performance_analyzer):
-        analyzer, config_manager, _ = setup_performance_analyzer
-        roi = analyzer._calculate_roi(11000)
+        analyzer, _, _ = setup_performance_analyzer
+        roi = analyzer._calculate_roi(10000, 11000)
         assert roi == 10.0  # Expected 10% ROI given a 10000 initial balance
     
     def test_calculate_roi_zero_balance(self, setup_performance_analyzer):
         analyzer, _, _ = setup_performance_analyzer
-        roi = analyzer._calculate_roi(10000)
+        roi = analyzer._calculate_roi(10000, 10000)
         assert roi == 0.0  # Expected 0% ROI when final balance matches initial balance
 
     def test_calculate_drawdown(self, setup_performance_analyzer, mock_account_data):
@@ -153,7 +153,9 @@ class TestPerformanceAnalyzer:
 
     def test_generate_performance_summary(self, setup_performance_analyzer, mock_account_data, caplog):
         analyzer, config_manager, order_book = setup_performance_analyzer
-
+        
+        initial_balance = mock_account_data["account_value"].iloc[0]
+        initial_price = mock_account_data['close'].iloc[0]
         final_fiat_balance = 10500
         final_crypto_balance = 0.5
         final_crypto_price = 20000
@@ -199,7 +201,12 @@ class TestPerformanceAnalyzer:
         # Capture logs during the performance summary generation
         with caplog.at_level(logging.INFO):
             performance_summary, formatted_orders = analyzer.generate_performance_summary(
-                mock_account_data, final_fiat_balance, final_crypto_balance, final_crypto_price, total_fees
+                mock_account_data,
+                initial_price,
+                final_fiat_balance, 
+                final_crypto_balance, 
+                final_crypto_price, 
+                total_fees
             )
 
         # Assertions for performance summary
@@ -207,7 +214,7 @@ class TestPerformanceAnalyzer:
         assert performance_summary["Start Date"] == mock_account_data.index[0]
         assert performance_summary["End Date"] == mock_account_data.index[-1]
         assert performance_summary["Duration"] == mock_account_data.index[-1] - mock_account_data.index[0]
-        assert performance_summary["ROI"] == f"{analyzer._calculate_roi(final_fiat_balance + final_crypto_balance * final_crypto_price):.2f}%"
+        assert performance_summary["ROI"] == f"{analyzer._calculate_roi(initial_balance, final_fiat_balance + final_crypto_balance * final_crypto_price):.2f}%"
         assert performance_summary["Grid Trading Gains"] == "197.50"  # Adjusted for mocked fees
         assert performance_summary["Total Fees"] == f"{total_fees:.2f}"
         assert performance_summary["Final Balance (Fiat)"] == f"{final_fiat_balance + final_crypto_balance * final_crypto_price:.2f}"
@@ -268,8 +275,8 @@ class TestPerformanceAnalyzer:
 
     def test_calculate_buy_and_hold_return(self, setup_performance_analyzer, mock_account_data):
         analyzer, _, _ = setup_performance_analyzer
-        final_price = 200
-        buy_and_hold_return = analyzer._calculate_buy_and_hold_return(mock_account_data, final_price)
         initial_price = mock_account_data['close'].iloc[0]
+        final_price = 200
+        buy_and_hold_return = analyzer._calculate_buy_and_hold_return(mock_account_data, initial_price, final_price)
         expected_return = ((final_price - initial_price) / initial_price) * 100
         assert buy_and_hold_return == expected_return

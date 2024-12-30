@@ -15,7 +15,7 @@ class LiveExchangeService(ExchangeInterface):
     ):
         self.config_manager = config_manager
         self.is_paper_trading_activated = is_paper_trading_activated
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.exchange_name = self.config_manager.get_exchange_name()
         self.api_key = self._get_env_variable("EXCHANGE_API_KEY")
         self.secret_key = self._get_env_variable("EXCHANGE_SECRET_KEY")
@@ -58,9 +58,11 @@ class LiveExchangeService(ExchangeInterface):
         self,
         pair: str, 
         on_ticker_update: Callable[[float], None], 
-        update_interval: float = 1.0
+        update_interval: float,
+        max_retries: int = 5
     ) -> None:
         self.connection_active = True
+        retry_count = 0
         
         while self.connection_active:
             try:
@@ -73,14 +75,24 @@ class LiveExchangeService(ExchangeInterface):
 
                 await on_ticker_update(current_price)
                 await asyncio.sleep(update_interval)
+                retry_count = 0  # Reset retry count after a successful operation
 
-            except NetworkError as e:
-                self.logger.error(f"Network error while connecting to WebSocket: {e}. Retrying in 5 seconds...")
-                await asyncio.sleep(5)
+            except (NetworkError, ExchangeError) as e:
+                retry_count += 1
+                retry_interval = min(retry_count * 5, 60)
+                self.logger.error(f"Error connecting to WebSocket for {pair}: {e}. Retrying in {retry_interval} seconds ({retry_count}/{max_retries}).")
+                
+                if retry_count >= max_retries:
+                    self.logger.error("Max retries reached. Stopping WebSocket connection.")
+                    self.connection_active = False
+                    break
 
-            except ExchangeError as e:
-                self.logger.error(f"Exchange error while fetching ticker for {pair}: {e}. Retrying in 5 seconds...")
-                await asyncio.sleep(5)
+                await asyncio.sleep(retry_interval)
+            
+            except asyncio.CancelledError:
+                self.logger.error(f"WebSocket subscription for {pair} was cancelled.")
+                self.connection_active = False
+                break
 
             except Exception as e:
                 self.logger.error(f"WebSocket connection error: {e}. Reconnecting...")
@@ -99,7 +111,7 @@ class LiveExchangeService(ExchangeInterface):
         self, 
         pair: str, 
         on_price_update: Callable[[float], None],
-        update_interval: float = 1.0
+        update_interval: float
     ) -> None:
         await self._subscribe_to_ticker_updates(pair, on_price_update, update_interval)
 

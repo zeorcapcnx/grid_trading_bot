@@ -1,9 +1,8 @@
-import unittest
-import pytest, os, logging
+import pytest, os
 from unittest.mock import Mock, AsyncMock, patch, MagicMock, ANY
 from config.config_manager import ConfigManager
 from core.bot_management.grid_trading_bot import GridTradingBot
-from core.bot_management.event_bus import EventBus, Events
+from core.bot_management.event_bus import EventBus
 from core.bot_management.notification.notification_handler import NotificationHandler
 from core.services.exceptions import UnsupportedExchangeError, DataFetchError, UnsupportedTimeframeError
 from config.trading_mode import TradingMode

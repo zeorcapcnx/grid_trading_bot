@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from unittest.mock import AsyncMock, Mock
 from config.config_manager import ConfigManager
-from core.bot_management.event_bus import EventBus, Events
+from core.bot_management.event_bus import EventBus
 from core.services.exchange_interface import ExchangeInterface
 from core.grid_management.grid_manager import GridManager
 from core.order_handling.order_manager import OrderManager
@@ -30,8 +30,6 @@ class TestGridTradingStrategy:
         config_manager.is_stop_loss_enabled.return_value = True
         config_manager.get_take_profit_threshold.return_value = 20000
         config_manager.get_stop_loss_threshold.return_value = 10000
-        # balance_tracker.crypto_balance = 1
-        # balance_tracker.get_total_balance_value = Mock(return_value=10500)
 
         def create_strategy(trading_mode: TradingMode = TradingMode.BACKTEST):
             return GridTradingStrategy(
@@ -71,7 +69,7 @@ class TestGridTradingStrategy:
 
     @pytest.mark.asyncio
     async def test_restart_live_trading(self, setup_strategy):
-        create_strategy, config_manager, exchange_service, grid_manager, _, _, _, _, _ = setup_strategy
+        create_strategy, _, exchange_service, grid_manager, _, _, _, _, _ = setup_strategy
         strategy = create_strategy(TradingMode.LIVE)
         grid_manager.get_trigger_price.return_value = 10500
         exchange_service.listen_to_ticker_updates = AsyncMock()
@@ -107,17 +105,18 @@ class TestGridTradingStrategy:
         )
 
         balance_tracker.get_total_balance_value.side_effect = [9000, 9500, 10000, 10000]
+        balance_tracker.crypto_balance = 1
         grid_manager.get_trigger_price.return_value = 8900
         order_manager.simulate_order_fills = AsyncMock()
         order_manager.initialize_grid_orders = AsyncMock()
         strategy._initialize_grid_orders_once = AsyncMock(side_effect=[False, True, True])
-        strategy._check_take_profit_stop_loss = AsyncMock(side_effect=[False, False, False])
+        strategy._handle_take_profit_stop_loss = AsyncMock(side_effect=[False, False, False])
 
         await strategy.run()
 
         expected_account_values = pd.Series([9500, 10000, 10000], index=strategy.data.index, name='account_value')
         pd.testing.assert_series_equal(strategy.data['account_value'], expected_account_values.astype('float64'))
-        strategy._check_take_profit_stop_loss.assert_awaited()
+        strategy._handle_take_profit_stop_loss.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_run_live_trading(self, setup_strategy):
@@ -134,6 +133,7 @@ class TestGridTradingStrategy:
         strategy = create_strategy()
         strategy.data = pd.DataFrame({'close': [10000, 10500, 11000]})
         strategy.close_prices = strategy.data['close'].values
+        initial_price = strategy.data['close'].iloc[0]
         final_price = strategy.data['close'].iloc[-1]
         balance_tracker.get_adjusted_fiat_balance.return_value = 5000
         balance_tracker.get_adjusted_crypto_balance.return_value = 1
@@ -144,6 +144,7 @@ class TestGridTradingStrategy:
 
         trading_performance_analyzer.generate_performance_summary.assert_called_once_with(
             strategy.data,
+            initial_price,
             balance_tracker.get_adjusted_fiat_balance(),
             balance_tracker.get_adjusted_crypto_balance(),
             final_price,
@@ -151,7 +152,7 @@ class TestGridTradingStrategy:
         )
 
     def test_plot_results(self, setup_strategy):
-        create_strategy, config_manager, _, _, _, _, _, plotter, _ = setup_strategy
+        create_strategy, _, _, _, _, _, _, plotter, _ = setup_strategy
         strategy = create_strategy()
         strategy.data = pd.DataFrame({'close': [10000, 10500, 11000]})
 

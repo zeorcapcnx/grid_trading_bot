@@ -2,7 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-class TradingStrategy(ABC):
+class TradingStrategyInterface(ABC):
     """
     Abstract base class for all trading strategies.
     Requires implementation of key methods for any concrete strategy.

@@ -1,4 +1,4 @@
-import pytest, unittest
+import pytest
 from unittest.mock import AsyncMock, Mock, patch
 from core.order_handling.order_status_tracker import OrderStatusTracker
 from core.bot_management.event_bus import Events

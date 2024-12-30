@@ -55,3 +55,8 @@ class ExchangeInterface(ABC):
     async def get_exchange_status(self) -> dict:
         """Fetches current exchange status."""
         pass
+
+    @abstractmethod
+    async def close_connection(self) -> None:
+        """Close current exchange connection."""
+        pass
