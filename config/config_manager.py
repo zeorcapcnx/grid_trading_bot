@@ -47,7 +47,6 @@ class ConfigManager:
         
         if trading_mode:
             return TradingMode.from_string(trading_mode)
-        return None
 
     def get_pair(self):
         return self.config.get('pair', {})
@@ -97,7 +96,6 @@ class ConfigManager:
 
         if strategy_type:
             return StrategyType.from_string(strategy_type)
-        return None
     
     def get_spacing_type(self)-> Optional[SpacingType]:
         grid_settings = self.get_grid_settings()
@@ -105,7 +103,6 @@ class ConfigManager:
     
         if spacing_type:
             return SpacingType.from_string(spacing_type)
-        return None
 
     def get_num_grids(self):
         grid_settings = self.get_grid_settings()

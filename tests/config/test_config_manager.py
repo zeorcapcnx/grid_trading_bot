@@ -68,6 +68,12 @@ class TestConfigManager:
             "end_date": "2024-07-11T00:00:00Z"
         }
         assert config_manager.get_period() == expected_period
+    
+    def test_get_start_date(self, config_manager):
+        assert config_manager.get_start_date() == "2024-07-04T00:00:00Z"
+    
+    def test_get_end_date(self, config_manager):
+        assert config_manager.get_end_date() == "2024-07-11T00:00:00Z"
 
     def test_get_num_grids(self, config_manager):
         assert config_manager.get_num_grids() == 20
@@ -78,6 +84,12 @@ class TestConfigManager:
             "bottom": 2850
         }
         assert config_manager.get_grid_range() == expected_range
+    
+    def test_get_top_range(self, config_manager):
+        assert config_manager.get_top_range() == 3100
+    
+    def test_get_bottom_range(self, config_manager):
+        assert config_manager.get_bottom_range() == 2850
 
     def test_is_take_profit_enabled(self, config_manager):
         assert config_manager.is_take_profit_enabled() == False
