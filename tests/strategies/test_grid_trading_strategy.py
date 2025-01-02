@@ -182,22 +182,16 @@ class TestGridTradingStrategy:
     async def test_initialize_historical_data_backtest_mode(self, setup_strategy):
         create_strategy, config_manager, exchange_service, _, _, _, _, _, _ = setup_strategy
         
-        # Mock the configuration values
         config_manager.get_timeframe.return_value = "1h"
         config_manager.get_start_date.return_value = "2024-01-01"
         config_manager.get_end_date.return_value = "2024-01-02"
         
-        # Mock the exchange service response
         mock_data = pd.DataFrame({'close': [100, 200, 300]})
         exchange_service.fetch_ohlcv.return_value = mock_data
         
-        # Create strategy after setting up the mocks
         strategy = create_strategy(TradingMode.BACKTEST)
-        
-        # Reset the mock to clear the call from initialization
         exchange_service.fetch_ohlcv.reset_mock()
         
-        # Now test the method directly
         result = strategy._initialize_historical_data()
         
         assert result is not None
@@ -295,3 +289,187 @@ class TestGridTradingStrategy:
         
         assert result == mock_orders
         trading_performance_analyzer.get_formatted_orders.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_take_profit_not_triggered(self, setup_strategy):
+        create_strategy, config_manager, _, _, order_manager, balance_tracker, _, _, _ = setup_strategy
+        strategy = create_strategy()
+        
+        config_manager.is_take_profit_enabled.return_value = True
+        config_manager.get_take_profit_threshold.return_value = 20000
+        balance_tracker.crypto_balance = 1
+        order_manager.execute_take_profit_or_stop_loss_order = AsyncMock()
+        
+        result = await strategy._handle_take_profit(current_price=19000)
+        
+        assert result is False
+        order_manager.execute_take_profit_or_stop_loss_order.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_handle_stop_loss_not_triggered(self, setup_strategy):
+        create_strategy, config_manager, _, _, order_manager, balance_tracker, _, _, _ = setup_strategy
+        strategy = create_strategy()
+        
+        config_manager.is_stop_loss_enabled.return_value = True
+        config_manager.get_stop_loss_threshold.return_value = 10000
+        balance_tracker.crypto_balance = 1
+        order_manager.execute_take_profit_or_stop_loss_order = AsyncMock()
+        
+        result = await strategy._handle_stop_loss(current_price=11000)
+        
+        assert result is False
+        order_manager.execute_take_profit_or_stop_loss_order.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_handle_take_profit_stop_loss_both_triggered(self, setup_strategy):
+        create_strategy, config_manager, _, _, order_manager, balance_tracker, _, _, event_bus = setup_strategy
+        strategy = create_strategy()
+        
+        config_manager.is_take_profit_enabled.return_value = True
+        config_manager.get_take_profit_threshold.return_value = 20000
+        balance_tracker.crypto_balance = 1
+        order_manager.execute_take_profit_or_stop_loss_order = AsyncMock()
+        event_bus.publish = AsyncMock()
+        
+        result = await strategy._handle_take_profit_stop_loss(current_price=21000)
+        
+        assert result is True
+        event_bus.publish.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_initialize_grid_orders_once_already_initialized(self, setup_strategy):
+        create_strategy, _, _, _, order_manager, _, _, _, _ = setup_strategy
+        strategy = create_strategy()
+        
+        order_manager.perform_initial_purchase = AsyncMock()
+        order_manager.initialize_grid_orders = AsyncMock()
+        
+        result = await strategy._initialize_grid_orders_once(
+            current_price=15100,
+            trigger_price=15000,
+            grid_orders_initialized=True,
+            last_price=14900
+        )
+        
+        assert result is True
+        order_manager.perform_initial_purchase.assert_not_called()
+        order_manager.initialize_grid_orders.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_initialize_grid_orders_once_no_last_price(self, setup_strategy):
+        create_strategy, _, _, _, order_manager, _, _, _, _ = setup_strategy
+        strategy = create_strategy()
+        
+        order_manager.perform_initial_purchase = AsyncMock()
+        order_manager.initialize_grid_orders = AsyncMock()
+        
+        result = await strategy._initialize_grid_orders_once(
+            current_price=15100,
+            trigger_price=15000,
+            grid_orders_initialized=False,
+            last_price=None
+        )
+        
+        assert result is False
+        order_manager.perform_initial_purchase.assert_not_called()
+        order_manager.initialize_grid_orders.assert_not_called()
+
+    def test_generate_performance_report_live_mode(self, setup_strategy):
+        create_strategy, _, _, _, _, balance_tracker, trading_performance_analyzer, _, _ = setup_strategy
+        strategy = create_strategy(TradingMode.LIVE)
+        
+        balance_tracker.get_adjusted_fiat_balance.return_value = 5000
+        balance_tracker.get_adjusted_crypto_balance.return_value = 1
+        balance_tracker.total_fees = 10
+        
+        strategy.live_trading_metrics = [
+            (pd.Timestamp('2024-01-01'), 10000, 100),
+            (pd.Timestamp('2024-01-02'), 11000, 110)
+        ]
+        
+        strategy.generate_performance_report()
+        
+        trading_performance_analyzer.generate_performance_summary.assert_called_once()
+
+    def test_generate_performance_report_live_mode_no_metrics(self, setup_strategy):
+        create_strategy, _, _, _, _, _, trading_performance_analyzer, _, _ = setup_strategy
+        strategy = create_strategy(TradingMode.LIVE)
+        
+        result, formatted_orders = strategy.generate_performance_report()
+        
+        assert result == {}
+        assert formatted_orders == []
+        trading_performance_analyzer.generate_performance_summary.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_live_trading_error_handling(self, setup_strategy):
+        create_strategy, _, exchange_service, _, _, _, _, _, _ = setup_strategy
+        strategy = create_strategy(TradingMode.LIVE)
+        
+        exchange_service.listen_to_ticker_updates = AsyncMock(side_effect=Exception("Connection error"))
+        
+        await strategy.run()
+        
+        exchange_service.listen_to_ticker_updates.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_backtest_with_no_data(self, setup_strategy):
+        create_strategy, _, _, _, _, _, _, _, _ = setup_strategy
+        strategy = create_strategy(TradingMode.BACKTEST)
+        strategy.data = None
+        
+        await strategy.run()
+        
+        assert strategy._running is False
+
+    @pytest.mark.asyncio
+    async def test_initialize_grid_orders_once_trigger_price_equals_last_price(self, setup_strategy):
+        create_strategy, _, _, _, order_manager, _, _, _, _ = setup_strategy
+        strategy = create_strategy()
+        
+        order_manager.perform_initial_purchase = AsyncMock()
+        order_manager.initialize_grid_orders = AsyncMock()
+        
+        result = await strategy._initialize_grid_orders_once(
+            current_price=15000,
+            trigger_price=15000,
+            grid_orders_initialized=False,
+            last_price=15000
+        )
+        
+        assert result is True
+        order_manager.perform_initial_purchase.assert_called_once_with(15000)
+        order_manager.initialize_grid_orders.assert_called_once_with(15000)
+
+    @pytest.mark.asyncio
+    async def test_run_live_trading_stop_condition(self, setup_strategy):
+        create_strategy, _, exchange_service, _, _, _, _, _, _ = setup_strategy
+        strategy = create_strategy(TradingMode.LIVE)
+        
+        async def stop_strategy(*args, **kwargs):
+            strategy._running = False
+        
+        exchange_service.listen_to_ticker_updates = AsyncMock(side_effect=stop_strategy)
+        
+        await strategy.run()
+        
+        assert not strategy._running
+        exchange_service.listen_to_ticker_updates.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_on_ticker_update_error_handling(self, setup_strategy):
+        create_strategy, _, exchange_service, grid_manager, order_manager, balance_tracker, _, _, _ = setup_strategy
+        strategy = create_strategy(TradingMode.LIVE)
+        
+        grid_manager.get_trigger_price.return_value = 15000
+        balance_tracker.get_total_balance_value.side_effect = Exception("Balance calculation error")
+        
+        async def simulate_ticker_update():
+            callback = exchange_service.listen_to_ticker_updates.call_args[0][1]
+            await callback(15100)
+        
+        exchange_service.listen_to_ticker_updates = AsyncMock(side_effect=simulate_ticker_update)
+        
+        await strategy.run()
+        
+        exchange_service.listen_to_ticker_updates.assert_called_once()
