@@ -169,3 +169,129 @@ class TestGridTradingStrategy:
 
         assert "Plotting is not available for live/paper trading mode." in [record.message for record in caplog.records]
         plotter.plot_results.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_initialize_historical_data_live_mode(self, setup_strategy):
+        create_strategy, _, _, _, _, _, _, _, _ = setup_strategy
+        strategy = create_strategy(TradingMode.LIVE)
+        
+        result = strategy._initialize_historical_data()
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_initialize_historical_data_backtest_mode(self, setup_strategy):
+        create_strategy, config_manager, exchange_service, _, _, _, _, _, _ = setup_strategy
+        
+        # Mock the configuration values
+        config_manager.get_timeframe.return_value = "1h"
+        config_manager.get_start_date.return_value = "2024-01-01"
+        config_manager.get_end_date.return_value = "2024-01-02"
+        
+        # Mock the exchange service response
+        mock_data = pd.DataFrame({'close': [100, 200, 300]})
+        exchange_service.fetch_ohlcv.return_value = mock_data
+        
+        # Create strategy after setting up the mocks
+        strategy = create_strategy(TradingMode.BACKTEST)
+        
+        # Reset the mock to clear the call from initialization
+        exchange_service.fetch_ohlcv.reset_mock()
+        
+        # Now test the method directly
+        result = strategy._initialize_historical_data()
+        
+        assert result is not None
+        assert isinstance(result, pd.DataFrame)
+        exchange_service.fetch_ohlcv.assert_called_once_with(
+            "BTC/USDT", "1h", "2024-01-01", "2024-01-02"
+        )
+
+    @pytest.mark.asyncio
+    async def test_initialize_historical_data_error(self, setup_strategy, caplog):
+        create_strategy, _, exchange_service, _, _, _, _, _, _ = setup_strategy
+        strategy = create_strategy(TradingMode.BACKTEST)
+        
+        # Mock the exchange service to raise an exception
+        exchange_service.fetch_ohlcv.side_effect = Exception("Failed to fetch data")
+        
+        with caplog.at_level(logging.ERROR):
+            result = strategy._initialize_historical_data()
+        
+        assert result is None
+        assert "Failed to initialize data for backtest trading mode" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_evaluate_tp_or_sl_no_crypto_balance(self, setup_strategy):
+        create_strategy, _, _, _, _, balance_tracker, _, _, _ = setup_strategy
+        strategy = create_strategy()
+        
+        balance_tracker.crypto_balance = 0
+        
+        result = await strategy._evaluate_tp_or_sl(current_price=15000)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_handle_take_profit_triggered(self, setup_strategy):
+        create_strategy, config_manager, _, _, order_manager, balance_tracker, _, _, _ = setup_strategy
+        strategy = create_strategy()
+        
+        config_manager.is_take_profit_enabled.return_value = True
+        config_manager.get_take_profit_threshold.return_value = 20000
+        balance_tracker.crypto_balance = 1
+        order_manager.execute_take_profit_or_stop_loss_order = AsyncMock()
+        
+        result = await strategy._handle_take_profit(current_price=21000)
+        
+        assert result is True
+        order_manager.execute_take_profit_or_stop_loss_order.assert_called_once_with(
+            current_price=21000, take_profit_order=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_handle_stop_loss_triggered(self, setup_strategy):
+        create_strategy, config_manager, _, _, order_manager, balance_tracker, _, _, _ = setup_strategy
+        strategy = create_strategy()
+        
+        config_manager.is_stop_loss_enabled.return_value = True
+        config_manager.get_stop_loss_threshold.return_value = 10000
+        balance_tracker.crypto_balance = 1
+        order_manager.execute_take_profit_or_stop_loss_order = AsyncMock()
+        
+        result = await strategy._handle_stop_loss(current_price=9000)
+        
+        assert result is True
+        order_manager.execute_take_profit_or_stop_loss_order.assert_called_once_with(
+            current_price=9000, stop_loss_order=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_initialize_grid_orders_once_first_time(self, setup_strategy):
+        create_strategy, _, _, grid_manager, order_manager, _, _, _, _ = setup_strategy
+        strategy = create_strategy()
+        
+        grid_manager.get_trigger_price.return_value = 15000
+        order_manager.perform_initial_purchase = AsyncMock()
+        order_manager.initialize_grid_orders = AsyncMock()
+        
+        result = await strategy._initialize_grid_orders_once(
+            current_price=15100,
+            trigger_price=15000,
+            grid_orders_initialized=False,
+            last_price=14900
+        )
+        
+        assert result is True
+        order_manager.perform_initial_purchase.assert_called_once_with(15100)
+        order_manager.initialize_grid_orders.assert_called_once_with(15100)
+
+    def test_get_formatted_orders(self, setup_strategy):
+        create_strategy, _, _, _, _, _, trading_performance_analyzer, _, _ = setup_strategy
+        strategy = create_strategy()
+        
+        mock_orders = ["Order1", "Order2"]
+        trading_performance_analyzer.get_formatted_orders.return_value = mock_orders
+        
+        result = strategy.get_formatted_orders()
+        
+        assert result == mock_orders
+        trading_performance_analyzer.get_formatted_orders.assert_called_once()
