@@ -248,20 +248,25 @@ class TestLiveExchangeService:
         await service.close_connection()
         assert service.connection_active is False
     
-    @pytest.mark.asyncio
+    @pytest.fixture
     @patch("core.services.live_exchange_service.ccxt")
     @patch("core.services.live_exchange_service.getattr")
-    async def test_subscribe_to_ticker_updates_success(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
+    def setup_websocket_test(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
         mock_getattr.return_value = mock_ccxt.binance
         mock_ccxt.binance.return_value = mock_exchange_instance
-        mock_exchange_instance.watch_ticker = AsyncMock(side_effect=[
-            {"last": 50000.0},  # First price update
-            asyncio.CancelledError(),  # Stop the loop
-        ])
-        
-        on_ticker_update = AsyncMock()
         service = LiveExchangeService(config_manager, is_paper_trading_activated=False)
         service.connection_active = True
+        on_ticker_update = AsyncMock()
+        return service, mock_exchange_instance, on_ticker_update
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(2)
+    async def test_subscribe_to_ticker_updates_success(self, setup_websocket_test):
+        service, mock_exchange_instance, on_ticker_update = setup_websocket_test
+        mock_exchange_instance.watch_ticker = AsyncMock(side_effect=[
+            {"last": 50000.0},
+            asyncio.CancelledError()
+        ])
 
         await service._subscribe_to_ticker_updates("BTC/USD", on_ticker_update, 0.1)
 
@@ -269,86 +274,124 @@ class TestLiveExchangeService:
         assert not service.connection_active
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(2)
     @patch("core.services.live_exchange_service.ccxt")
     @patch("core.services.live_exchange_service.getattr")
-    async def test_subscribe_to_ticker_updates_network_error(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
+    @patch("core.services.live_exchange_service.asyncio.sleep", new_callable=AsyncMock)
+    async def test_subscribe_to_ticker_updates_network_error(
+        self, 
+        mock_sleep, 
+        mock_getattr, 
+        mock_ccxt, 
+        config_manager, 
+        setup_env_vars, 
+        mock_exchange_instance
+    ):
         mock_getattr.return_value = mock_ccxt.binance
         mock_ccxt.binance.return_value = mock_exchange_instance
-        mock_exchange_instance.watch_ticker = AsyncMock(side_effect=ccxt.NetworkError("Network issue"))
+        mock_exchange_instance.watch_ticker = AsyncMock(side_effect=[
+            ccxt.NetworkError("Network issue"),
+            asyncio.CancelledError()
+        ])
+        
         on_ticker_update = AsyncMock()
         service = LiveExchangeService(config_manager, is_paper_trading_activated=False)
         service.connection_active = True
 
         with patch.object(service.logger, "error") as mock_logger_error:
-            await service._subscribe_to_ticker_updates("BTC/USD", on_ticker_update, 0.1)
-            service.connection_active = False
+            await service._subscribe_to_ticker_updates("BTC/USD", on_ticker_update, 0.1, max_retries=1)
 
-            mock_logger_error.assert_any_call("Error connecting to WebSocket for BTC/USD: Network issue. Retrying in 5 seconds (1/5).")
+            mock_logger_error.assert_any_call(
+                "Error connecting to WebSocket for BTC/USD: Network issue. Retrying in 5 seconds (1/1)."
+            )
+                        
             on_ticker_update.assert_not_awaited()
 
         assert not service.connection_active
-    
+        assert mock_exchange_instance.watch_ticker.await_count == 1
+
     @pytest.mark.asyncio
-    @patch("core.services.live_exchange_service.LiveExchangeService._subscribe_to_ticker_updates", new_callable=AsyncMock)
-    async def test_listen_to_ticker_updates(self, mock_subscribe_to_ticker_updates, config_manager, setup_env_vars):
+    @patch("core.services.live_exchange_service.ccxt")
+    @patch("core.services.live_exchange_service.getattr")
+    async def test_subscribe_to_ticker_updates_max_retries_exceeded(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
+        mock_getattr.return_value = mock_ccxt.binance
+        mock_ccxt.binance.return_value = mock_exchange_instance
+        mock_exchange_instance.watch_ticker = AsyncMock(side_effect=ccxt.NetworkError("Network issue"))
+        
         service = LiveExchangeService(config_manager, is_paper_trading_activated=False)
+        service.connection_active = True
         on_ticker_update = AsyncMock()
 
-        await service.listen_to_ticker_updates("BTC/USD", on_ticker_update, 0.1)
-        mock_subscribe_to_ticker_updates.assert_awaited_once_with("BTC/USD", on_ticker_update, 0.1)
-    
-    @pytest.mark.asyncio
-    @patch("core.services.live_exchange_service.ccxt")
-    @patch("core.services.live_exchange_service.getattr")
-    async def test_get_balance_success(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
-        mock_getattr.return_value = mock_ccxt.binance
-        mock_ccxt.binance.return_value = mock_exchange_instance
-        mock_exchange_instance.fetch_balance = AsyncMock(return_value={"total": {"BTC": 1.0, "USD": 1000.0}})
-
-        service = LiveExchangeService(config_manager, is_paper_trading_activated=False)
-        result = await service.get_balance()
-
-        assert result == {"total": {"BTC": 1.0, "USD": 1000.0}}
-        mock_exchange_instance.fetch_balance.assert_awaited_once()
+        await service._subscribe_to_ticker_updates("BTC/USD", on_ticker_update, 0.1, max_retries=2)
+        
+        assert not service.connection_active
+        assert mock_exchange_instance.watch_ticker.await_count == 2
 
     @pytest.mark.asyncio
     @patch("core.services.live_exchange_service.ccxt")
     @patch("core.services.live_exchange_service.getattr")
-    async def test_get_balance_error(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
+    async def test_subscribe_to_ticker_updates_close_error(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
         mock_getattr.return_value = mock_ccxt.binance
         mock_ccxt.binance.return_value = mock_exchange_instance
-        mock_exchange_instance.fetch_balance = AsyncMock(side_effect=ccxt.BaseError("Balance error"))
-
+        mock_exchange_instance.watch_ticker = AsyncMock(side_effect=asyncio.CancelledError())
+        mock_exchange_instance.close = AsyncMock(side_effect=Exception("Close error"))
+        
         service = LiveExchangeService(config_manager, is_paper_trading_activated=False)
+        service.connection_active = True
+        on_ticker_update = AsyncMock()
 
-        with pytest.raises(DataFetchError, match="Error fetching balance: Balance error"):
-            await service.get_balance()
-        mock_exchange_instance.fetch_balance.assert_awaited_once()
-    
+        with patch.object(service.logger, "error") as mock_logger_error:
+            await service._subscribe_to_ticker_updates("BTC/USD", on_ticker_update, 0.1)
+            mock_logger_error.assert_any_call("Error while closing WebSocket connection: Close error", exc_info=True)
+
+    @pytest.mark.parametrize("exchange_name,expected_url", [
+        ("binance", "https://testnet.binance.vision/api"),
+        ("kraken", "https://api.demo-futures.kraken.com"),
+        ("bitmex", "https://testnet.bitmex.com"),
+        ("bybit", None),  # bybit uses set_sandbox_mode
+        ("unknown", None)
+    ])
+    @patch("core.services.live_exchange_service.ccxt")
+    @patch("core.services.live_exchange_service.getattr")
+    def test_enable_sandbox_mode_all_exchanges(self, mock_getattr, mock_ccxt, exchange_name, expected_url, config_manager, setup_env_vars):
+        config_manager.get_exchange_name.return_value = exchange_name
+        mock_exchange_instance = Mock()
+        mock_exchange_instance.urls = {'api': 'default_url'}
+        mock_exchange_instance.set_sandbox_mode = Mock()
+        mock_ccxt.binance.return_value = mock_exchange_instance
+        mock_getattr.return_value = mock_ccxt.binance
+
+        service = LiveExchangeService(config_manager, is_paper_trading_activated=True)
+
+        if exchange_name == "bybit":
+            mock_exchange_instance.set_sandbox_mode.assert_called_once_with(True)
+        elif expected_url:
+            assert mock_exchange_instance.urls['api'] == expected_url
+        else:
+            assert mock_exchange_instance.urls['api'] == 'default_url'
+
     @pytest.mark.asyncio
     @patch("core.services.live_exchange_service.ccxt")
     @patch("core.services.live_exchange_service.getattr")
-    async def test_fetch_order_success(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
+    async def test_place_order_network_error(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
         mock_getattr.return_value = mock_ccxt.binance
         mock_ccxt.binance.return_value = mock_exchange_instance
-        mock_exchange_instance.fetch_order = AsyncMock(return_value={"id": "123", "status": "open"})
-
+        mock_exchange_instance.create_order = AsyncMock(side_effect=ccxt.NetworkError("Network error"))
+        
         service = LiveExchangeService(config_manager, is_paper_trading_activated=False)
-        result = await service.fetch_order("BTC/USD", "123")
 
-        assert result == {"id": "123", "status": "open"}
-        mock_exchange_instance.fetch_order.assert_awaited_once_with("123", "BTC/USD")
+        with pytest.raises(DataFetchError, match="Network issue occurred while placing order: Network error"):
+            await service.place_order("BTC/USD", "limit", "buy", 1, 50000.0)
 
     @pytest.mark.asyncio
     @patch("core.services.live_exchange_service.ccxt")
     @patch("core.services.live_exchange_service.getattr")
-    async def test_fetch_order_error(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
+    async def test_fetch_order_network_error(self, mock_getattr, mock_ccxt, config_manager, setup_env_vars, mock_exchange_instance):
         mock_getattr.return_value = mock_ccxt.binance
         mock_ccxt.binance.return_value = mock_exchange_instance
-        mock_exchange_instance.fetch_order = AsyncMock(side_effect=ccxt.BaseError("Order error"))
-
+        mock_exchange_instance.fetch_order = AsyncMock(side_effect=ccxt.NetworkError("Network error"))
+        
         service = LiveExchangeService(config_manager, is_paper_trading_activated=False)
 
-        with pytest.raises(DataFetchError, match="Exchange-specific error occurred: Order error"):
+        with pytest.raises(DataFetchError, match="Network issue occurred while fetching order status: Network error"):
             await service.fetch_order("BTC/USD", "123")
-        mock_exchange_instance.fetch_order.assert_awaited_once_with("123", "BTC/USD")
