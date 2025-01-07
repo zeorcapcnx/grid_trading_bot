@@ -201,14 +201,15 @@ class OrderManager:
             order: The completed Buy Order instance.
             grid_level: The grid level associated with the completed buy order.
         """
-        self.logger.info(f"Buy order completed at grid level {grid_level.price}.")
+        self.logger.info(f"Buy order completed at grid level {grid_level}.")
         self.grid_manager.complete_order(grid_level, OrderSide.BUY)
         paired_sell_level = self.grid_manager.get_paired_sell_level(grid_level)
+        self.logger.info(f"Paired sell level found: {paired_sell_level}")
 
         if paired_sell_level and self.grid_manager.can_place_order(paired_sell_level, OrderSide.SELL):
             await self._place_sell_order(grid_level, paired_sell_level, order.filled)
         else:
-            self.logger.warning(f"No valid sell grid level found for buy grid level {grid_level.price}. Skipping sell order placement.")
+            self.logger.warning(f"No valid sell grid level found for buy grid level {grid_level}. Skipping sell order placement.")
     
     async def _handle_sell_order_completion(
         self, 
@@ -222,14 +223,14 @@ class OrderManager:
             order: The completed Sell Order instance.
             grid_level: The grid level associated with the completed sell order.
         """
-        self.logger.info(f"Sell order completed at grid level {grid_level.price}.")
+        self.logger.info(f"Sell order completed at grid level {grid_level}.")
         self.grid_manager.complete_order(grid_level, OrderSide.SELL)
         paired_buy_level = self._get_or_create_paired_buy_level(grid_level)
 
         if paired_buy_level:
             await self._place_buy_order(grid_level, paired_buy_level, order.filled)
         else:
-            self.logger.error(f"Failed to find or create a paired buy grid level for grid level {grid_level.price}.")
+            self.logger.error(f"Failed to find or create a paired buy grid level for grid level {grid_level}.")
 
     def _get_or_create_paired_buy_level(self, sell_grid_level: GridLevel) -> Optional[GridLevel]:
         """
@@ -244,16 +245,16 @@ class OrderManager:
         paired_buy_level = sell_grid_level.paired_buy_level
 
         if paired_buy_level and self.grid_manager.can_place_order(paired_buy_level, OrderSide.BUY):
-            self.logger.info(f"Found valid paired buy level {paired_buy_level.price} for sell level {sell_grid_level.price}.")
+            self.logger.info(f"Found valid paired buy level {paired_buy_level} for sell level {sell_grid_level}.")
             return paired_buy_level
 
         fallback_buy_level = self.grid_manager.get_grid_level_below(sell_grid_level)
 
         if fallback_buy_level:
-            self.logger.info(f"Paired fallback buy level {fallback_buy_level.price} with sell level {sell_grid_level.price}.")
+            self.logger.info(f"Paired fallback buy level {fallback_buy_level} with sell level {sell_grid_level}.")
             return fallback_buy_level
 
-        self.logger.warning(f"No valid fallback buy level found below sell level {sell_grid_level.price}.")
+        self.logger.warning(f"No valid fallback buy level found below sell level {sell_grid_level}.")
         return None
     
     async def _place_buy_order(
@@ -284,7 +285,7 @@ class OrderManager:
             self.order_book.add_order(buy_order, buy_grid_level)
             await self.notification_handler.async_send_notification(NotificationType.ORDER_PLACED, order_details=str(buy_order))  
         else:
-            self.logger.error(f"Failed to place buy order at grid level {buy_grid_level}.")
+            self.logger.error(f"Failed to place buy order at grid level {buy_grid_level}")
 
     async def _place_sell_order(
         self, 
@@ -394,7 +395,7 @@ class OrderManager:
                 NotificationType.TAKE_PROFIT_TRIGGERED if take_profit_order else NotificationType.STOP_LOSS_TRIGGERED,
                 order_details=str(order)
             )            
-            self.logger.debug(f"{event} triggered at {current_price} and sell order executed.")
+            self.logger.info(f"{event} triggered at {current_price} and sell order executed.")
         
         except OrderExecutionFailedError as e:
             self.logger.error(f"Order execution failed: {str(e)}")

@@ -56,32 +56,30 @@ class OrderStatusTracker:
         open_orders = self.order_book.get_open_orders()
         tasks = [self._create_task(self._query_and_handle_order(order)) for order in open_orders]
         results = await asyncio.gather(*tasks, return_exceptions=True)
+        
         for result in results:
             if isinstance(result, Exception):
                 self.logger.error(f"Error during order processing: {result}", exc_info=True)
 
-    async def _query_and_handle_order(self, order):
+    async def _query_and_handle_order(self, local_order: Order):
         """
         Query order and handling state changes if needed.
         """
         try:
-            order_status = await self.order_execution_strategy.get_order(order.identifier, order.symbol)
-            self._handle_order_status_change(order, order_status)
+            remote_order = await self.order_execution_strategy.get_order(local_order.identifier, local_order.symbol)
+            self._handle_order_status_change(remote_order)
 
         except Exception as error:
-            self.logger.error(f"Failed to query status for order {order.identifier}: {error}", exc_info=True)
+            self.logger.error(f"Failed to query remote order with identifier {local_order.identifier}: {error}", exc_info=True)
 
     def _handle_order_status_change(
         self,
-        local_order: Order,
         remote_order: Order,
     ) -> None:
         """
-        Handles changes in the status of an order by comparing the local order state 
-        with the latest data fetched from the exchange.
+        Handles changes in the status of the order data fetched from the exchange.
 
         Args:
-            local_order: The local `Order` object being tracked.
             remote_order: The latest `Order` object fetched from the exchange.
         
         Raises:
@@ -92,18 +90,18 @@ class OrderStatusTracker:
                 self.logger.error(f"Missing 'status' in remote order object: {remote_order}", exc_info=True)
                 raise ValueError("Order data from the exchange is missing the 'status' field.")
             elif remote_order.status == OrderStatus.CLOSED:
-                self.order_book.update_order_status(local_order.identifier, OrderStatus.CLOSED)
-                self.event_bus.publish_sync(Events.ORDER_FILLED, local_order)
-                self.logger.info(f"Order {local_order.identifier} filled.")
+                self.order_book.update_order_status(remote_order.identifier, OrderStatus.CLOSED)
+                self.event_bus.publish_sync(Events.ORDER_FILLED, remote_order)
+                self.logger.info(f"Order {remote_order.identifier} filled.")
             elif remote_order.status == OrderStatus.CANCELED:
-                self.order_book.update_order_status(local_order.identifier, OrderStatus.CANCELED)
-                self.event_bus.publish_sync(Events.ORDER_CANCELLED, local_order)
-                self.logger.warning(f"Order {local_order.identifier} was canceled.")
+                self.order_book.update_order_status(remote_order.identifier, OrderStatus.CANCELED)
+                self.event_bus.publish_sync(Events.ORDER_CANCELLED, remote_order)
+                self.logger.warning(f"Order {remote_order.identifier} was canceled.")
             elif remote_order.status == OrderStatus.OPEN:  # Still open
                 if remote_order.filled > 0:
                     self.logger.info(f"Order {remote_order.identifier} partially filled. Filled: {remote_order.filled}, Remaining: {remote_order.remaining}.")
                 else:
-                    self.logger.debug(f"Order {remote_order.identifier} is still open. No fills yet.")
+                    self.logger.info(f"Order {remote_order.identifier} is still open. No fills yet.")
             else:
                 self.logger.warning(f"Unhandled order status '{remote_order.status}' for order {remote_order.identifier}.")
 
