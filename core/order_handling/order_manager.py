@@ -1,5 +1,6 @@
 import logging
 from typing import Union, Optional
+from datetime import datetime
 import pandas as pd
 from .order import Order, OrderSide, OrderStatus
 from ..order_handling.balance_tracker import BalanceTracker
@@ -346,8 +347,10 @@ class OrderManager:
                 current_price
             )
             self.logger.info(f"Initial crypto purchase completed. Order details: {buy_order}")
+            self.order_book.add_order(buy_order)
+            await self.notification_handler.async_send_notification(NotificationType.ORDER_PLACED, order_details=f"Initial purchase done: {str(buy_order)}")  
 
-            if buy_order is not None and self.trading_mode == TradingMode.BACKTEST:
+            if self.trading_mode == TradingMode.BACKTEST:
                 await self._simulate_fill(buy_order, buy_order.timestamp)
 
         except OrderExecutionFailedError as e:
@@ -355,7 +358,7 @@ class OrderManager:
             await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Error while performing initial purchase. {e}")
 
         except Exception as e:
-            self.logger.error(f"Failed to perform initial purchase: at current_price: {current_price}", exc_info=True)
+            self.logger.error(f"Failed to perform initial purchase at current_price: {current_price} - error: {e}", exc_info=True)
             await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Error while performing initial purchase. {e}")
 
     async def execute_take_profit_or_stop_loss_order(
@@ -449,5 +452,7 @@ class OrderManager:
         order.remaining = 0.0
         order.status = OrderStatus.CLOSED
         order.last_trade_timestamp = timestamp
-        self.logger.info(f"Simulated fill for {order.side.value.upper()} order at price {order.price} with amount {order.amount}. Filled at timestamp {timestamp}")
+        timestamp_in_seconds = timestamp / 1000 if timestamp > 10**10 else timestamp
+        formatted_timestamp = datetime.fromtimestamp(timestamp_in_seconds).strftime('%Y-%m-%d %H:%M:%S')
+        self.logger.info(f"Simulated fill for {order.side.value.upper()} order at price {order.price} with amount {order.amount}. Filled at timestamp {formatted_timestamp}")
         await self.event_bus.publish(Events.ORDER_FILLED, order)

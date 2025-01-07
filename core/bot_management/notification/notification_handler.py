@@ -1,5 +1,6 @@
 from typing import List, Optional, Union
 import apprise, logging, asyncio
+from concurrent.futures import ThreadPoolExecutor
 from .notification_content import NotificationType
 from config.trading_mode import TradingMode
 from core.bot_management.event_bus import EventBus, Events
@@ -10,6 +11,7 @@ class NotificationHandler:
     Handles sending notifications through various channels using the Apprise library.
     Supports multiple notification services like Telegram, Discord, Slack, etc.
     """
+    _executor = ThreadPoolExecutor(max_workers=3)
 
     def __init__(
         self, 
