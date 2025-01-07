@@ -148,27 +148,37 @@ class GridManager:
             The paired sell grid level, or None if no valid level exists.
         """
         if self.strategy_type == StrategyType.SIMPLE_GRID:
+            self.logger.info(f"Looking for paired sell level for buy level at {buy_grid_level}")
+            self.logger.info(f"Available sell grids: {self.sorted_sell_grids}")
+            
             for sell_price in self.sorted_sell_grids:
                 sell_level = self.grid_levels[sell_price]
+                self.logger.info(f"Checking sell level {sell_price}, state: {sell_level.state}")
 
                 if sell_level and not self.can_place_order(sell_level, OrderSide.SELL):
-                    self.logger.debug(f"Skipping sell level {sell_price} - already has a pending sell order.")
+                    self.logger.info(f"Skipping sell level {sell_price} - cannot place order. State: {sell_level.state}")
                     continue
 
                 if sell_price > buy_grid_level.price:
-                    self.logger.info(f"Paired sell level found at {sell_price} for buy level {buy_grid_level.price}.")
+                    self.logger.info(f"Paired sell level found at {sell_price} for buy level {buy_grid_level}.")
                     return sell_level
 
-            self.logger.warning(f"No paired sell level found for buy level {buy_grid_level.price}.")
+            self.logger.warning(f"No suitable sell level found above {buy_grid_level}")
             return None
     
         elif self.strategy_type == StrategyType.HEDGED_GRID:
+            self.logger.info(f"Available price grids: {self.price_grids}")
             sorted_prices = sorted(self.price_grids)
             current_index = sorted_prices.index(buy_grid_level.price)
+            self.logger.info(f"Current index of buy level {buy_grid_level.price}: {current_index}")
 
             if current_index + 1 < len(sorted_prices):
                 paired_sell_price = sorted_prices[current_index + 1]
-                return self.grid_levels[paired_sell_price]
+                sell_level = self.grid_levels[paired_sell_price]
+                self.logger.info(f"Paired sell level for buy level {buy_grid_level.price} is at {paired_sell_price} (state: {sell_level.state})")
+                return sell_level
+        
+            self.logger.warning(f"No suitable sell level found for buy grid level {buy_grid_level}")
             return None
 
         else:

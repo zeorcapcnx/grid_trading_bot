@@ -85,10 +85,10 @@ class TestOrderStatusTracker:
         tracker, _, _, _ = setup_tracker
         mock_remote_order = Mock(identifier="order_1", status=OrderStatus.OPEN, filled=0)
 
-        with patch.object(tracker.logger, "debug") as mock_logger_debug:
+        with patch.object(tracker.logger, "info") as mock_logger_info:
             tracker._handle_order_status_change(mock_remote_order)
 
-            mock_logger_debug.assert_called_once_with("Order order_1 is still open. No fills yet.")
+            mock_logger_info.assert_called_once_with("Order order_1 is still open. No fills yet.")
 
     def test_handle_order_status_change_partially_filled(self, setup_tracker):
         tracker, _, _, _ = setup_tracker

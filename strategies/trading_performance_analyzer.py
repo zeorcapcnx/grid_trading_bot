@@ -161,8 +161,13 @@ class TradingPerformanceAnalyzer:
     
     def _format_order(self, order: Order, grid_level: Optional[GridLevel]) -> List[Union[str, float]]:
         grid_level_price = grid_level.price if grid_level else "N/A"
-        # Assuming order.price is the execution price and grid level price the expected price
-        slippage = ((order.average - grid_level_price) / grid_level_price) * 100 if grid_level else "N/A"
+        if grid_level and order.average is not None:
+            # Assuming order.price is the execution price and grid level price the expected price
+            slippage = ((order.average - grid_level_price) / grid_level_price) * 100
+            slippage_str = f"{slippage:.2f}%"
+        else:
+            slippage = "N/A"
+            slippage_str = "N/A"
         return [
             order.side.name,
             order.order_type.name,
@@ -171,7 +176,7 @@ class TradingPerformanceAnalyzer:
             order.filled, 
             order.format_last_trade_timestamp(), 
             grid_level_price, 
-            f"{slippage:.2f}%" if grid_level else "N/A"
+            slippage_str
         ]
     
     def _calculate_trade_counts(self) -> Tuple[int, int]:

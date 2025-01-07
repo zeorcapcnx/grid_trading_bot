@@ -204,7 +204,6 @@ class OrderManager:
         self.logger.info(f"Buy order completed at grid level {grid_level}.")
         self.grid_manager.complete_order(grid_level, OrderSide.BUY)
         paired_sell_level = self.grid_manager.get_paired_sell_level(grid_level)
-        self.logger.info(f"Paired sell level found: {paired_sell_level}")
 
         if paired_sell_level and self.grid_manager.can_place_order(paired_sell_level, OrderSide.SELL):
             await self._place_sell_order(grid_level, paired_sell_level, order.filled)
