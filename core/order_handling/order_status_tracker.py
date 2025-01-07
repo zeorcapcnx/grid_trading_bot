@@ -6,7 +6,7 @@ from core.order_handling.order import Order, OrderStatus
 class OrderStatusTracker:
     """
     Tracks the status of pending orders and publishes events
-    when their states change (e.g., completed, canceled).
+    when their states change (e.g., open, filled, canceled).
     """
 
     def __init__(
@@ -91,23 +91,19 @@ class OrderStatusTracker:
             if remote_order.status == OrderStatus.UNKNOWN:
                 self.logger.error(f"Missing 'status' in remote order object: {remote_order}", exc_info=True)
                 raise ValueError("Order data from the exchange is missing the 'status' field.")
-
-            if remote_order.status == OrderStatus.CLOSED:
+            elif remote_order.status == OrderStatus.CLOSED:
                 self.order_book.update_order_status(local_order.identifier, OrderStatus.CLOSED)
-                self.event_bus.publish_sync(Events.ORDER_COMPLETED, local_order)
-                self.logger.info(f"Order {local_order.identifier} completed.")
-
-            if remote_order.status == OrderStatus.CANCELED:
+                self.event_bus.publish_sync(Events.ORDER_FILLED, local_order)
+                self.logger.info(f"Order {local_order.identifier} filled.")
+            elif remote_order.status == OrderStatus.CANCELED:
                 self.order_book.update_order_status(local_order.identifier, OrderStatus.CANCELED)
                 self.event_bus.publish_sync(Events.ORDER_CANCELLED, local_order)
                 self.logger.warning(f"Order {local_order.identifier} was canceled.")
-
-            if remote_order.status == OrderStatus.OPEN:  # Still open
+            elif remote_order.status == OrderStatus.OPEN:  # Still open
                 if remote_order.filled > 0:
                     self.logger.info(f"Order {remote_order.identifier} partially filled. Filled: {remote_order.filled}, Remaining: {remote_order.remaining}.")
                 else:
                     self.logger.debug(f"Order {remote_order.identifier} is still open. No fills yet.")
-
             else:
                 self.logger.warning(f"Unhandled order status '{remote_order.status}' for order {remote_order.identifier}.")
 

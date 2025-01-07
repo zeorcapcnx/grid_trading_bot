@@ -5,7 +5,7 @@ class Events:
     """
     Defines event types for the EventBus.
     """
-    ORDER_COMPLETED = "order_completed"
+    ORDER_FILLED = "order_filled"
     ORDER_CANCELLED = "order_cancelled"
     START_BOT = "start_bot"
     STOP_BOT = "stop_bot"

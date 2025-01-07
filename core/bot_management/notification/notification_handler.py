@@ -1,13 +1,15 @@
 from typing import List, Optional, Union
 import apprise, logging, asyncio
-from concurrent.futures import ThreadPoolExecutor
 from .notification_content import NotificationType
 from config.trading_mode import TradingMode
 from core.bot_management.event_bus import EventBus, Events
 from core.order_handling.order import Order
 
 class NotificationHandler:
-    _executor = ThreadPoolExecutor(max_workers=3)
+    """
+    Handles sending notifications through various channels using the Apprise library.
+    Supports multiple notification services like Telegram, Discord, Slack, etc.
+    """
 
     def __init__(
         self, 
@@ -22,7 +24,7 @@ class NotificationHandler:
         self.apprise_instance = apprise.Apprise() if self.enabled else None
         
         if self.enabled and urls is not None:
-            self.event_bus.subscribe(Events.ORDER_COMPLETED, self._send_notification_on_order_completed)
+            self.event_bus.subscribe(Events.ORDER_FILLED, self._send_notification_on_order_filled)
 
             for url in urls:
                 self.apprise_instance.add(url)
@@ -64,5 +66,5 @@ class NotificationHandler:
             except Exception as e:
                 self.logger.error(f"Failed to send notification: {str(e)}")
     
-    async def _send_notification_on_order_completed(self, order: Order) -> None:
-        await self.async_send_notification(NotificationType.ORDER_PLACED, order_details=str(order))
+    async def _send_notification_on_order_filled(self, order: Order) -> None:
+        await self.async_send_notification(NotificationType.ORDER_FILLED, order_details=str(order))

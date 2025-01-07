@@ -40,7 +40,8 @@ class OrderManager:
         self.trading_mode: TradingMode = trading_mode
         self.trading_pair = trading_pair
         self.strategy_type: StrategyType = strategy_type
-        self.event_bus.subscribe(Events.ORDER_COMPLETED, self._on_order_completed)
+        self.event_bus.subscribe(Events.ORDER_FILLED, self._on_order_filled)
+        self.event_bus.subscribe(Events.ORDER_CANCELLED, self._on_order_cancelled)
     
     async def initialize_grid_orders(
         self, 
@@ -84,11 +85,11 @@ class OrderManager:
 
                 except OrderExecutionFailedError as e:
                     self.logger.error(f"Failed to initialize buy order at grid level {price} - {str(e)}", exc_info=True)
-                    await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Failed to place order: {e}")
+                    await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Error while placing initial buy order. {e}")
 
                 except Exception as e:
                     self.logger.error(f"Unexpected error during buy order initialization at grid level {price}: {e}", exc_info=True)
-                    await self.notification_handler.async_send_notification(NotificationType.ERROR_OCCURRED, error_details=f"Failed to place order: {e}")
+                    await self.notification_handler.async_send_notification(NotificationType.ERROR_OCCURRED, error_details=f"Error while placing initial buy order. {e}")
         
         for price in self.grid_manager.sorted_sell_grids:
             if price <= current_price:
@@ -124,37 +125,51 @@ class OrderManager:
 
                 except OrderExecutionFailedError as e:
                     self.logger.error(f"Failed to initialize sell order at grid level {price} - {str(e)}", exc_info=True)
-                    await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Failed to place order: {e}")
+                    await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Error while placing initial sell order. {e}")
 
                 except Exception as e:
                     self.logger.error(f"Unexpected error during sell order initialization at grid level {price}: {e}", exc_info=True)
-                    await self.notification_handler.async_send_notification(NotificationType.ERROR_OCCURRED, error_details=f"Failed to place order: {e}")
+                    await self.notification_handler.async_send_notification(NotificationType.ERROR_OCCURRED, error_details=f"Error while placing initial sell order. {e}")
 
-    async def _on_order_completed(
+    async def _on_order_cancelled(
         self, 
         order: Order
     ) -> None:
         """
-        Handles completed orders and places paired orders as needed.
+        Handles cancelled orders.
 
         Args:
-            order: The completed Order instance.
+            order: The cancelled Order instance.
+        """
+        ## TODO: place new limit Order
+        await self.notification_handler.async_send_notification(NotificationType.ORDER_CANCELLED, order_details=str(order))  
+
+    async def _on_order_filled(
+        self, 
+        order: Order
+    ) -> None:
+        """
+        Handles filled orders and places paired orders as needed.
+
+        Args:
+            order: The filled Order instance.
         """
         try:
             grid_level = self.order_book.get_grid_level_for_order(order)
 
             if not grid_level:
-                self.logger.warning(f"Could not handle Order completion - No grid level found for the given completed order {order}")
+                self.logger.warning(f"Could not handle Order completion - No grid level found for the given filled order {order}")
                 return
 
             await self._handle_order_completion(order, grid_level)
 
         except OrderExecutionFailedError as e:
-            self.logger.error(f"Failed while handling completed order - {str(e)}", exc_info=True)
-            await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Failed to place order: {e}")
+            self.logger.error(f"Failed while handling filled order - {str(e)}", exc_info=True)
+            await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Failed handling filled order. {e}")
 
         except Exception as e:
-            self.logger.error(f"Error handling completed order {order.identifier}: {e}", exc_info=True)
+            self.logger.error(f"Error while handling filled order {order.identifier}: {e}", exc_info=True)
+            await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Failed handling filled order. {e}")
     
     async def _handle_order_completion(
         self, 
@@ -162,25 +177,17 @@ class OrderManager:
         grid_level: GridLevel
     ) -> None:
         """
-        Handles the completion of an order (buy or sell) for the hedged grid trading strategy.
+        Handles the completion of an order (buy or sell).
 
         Args:
-            order: The completed Order instance.
-            grid_level: The grid level associated with the completed order.
+            order: The filled Order instance.
+            grid_level: The grid level associated with the filled order.
         """
-        try:
-            if order.side == OrderSide.BUY:
-                await self._handle_buy_order_completion(order, grid_level)
+        if order.side == OrderSide.BUY:
+            await self._handle_buy_order_completion(order, grid_level)
 
-            elif order.side == OrderSide.SELL:
-                await self._handle_sell_order_completion(order, grid_level)
-
-        except OrderExecutionFailedError as e:
-            self.logger.error(f"Failed while handling completed order - {str(e)}", exc_info=True)
-            await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Failed to place order: {e}")
-
-        except Exception as e:
-            self.logger.error(f"Error handling order completion. Order: {order} at grid_level: {grid_level} - {e}", exc_info=True)
+        elif order.side == OrderSide.SELL:
+            await self._handle_sell_order_completion(order, grid_level)
     
     async def _handle_buy_order_completion(
         self, 
@@ -275,6 +282,7 @@ class OrderManager:
             self.balance_tracker.reserve_funds_for_buy(buy_order.amount * buy_grid_level.price)
             self.grid_manager.mark_order_pending(buy_grid_level, buy_order)
             self.order_book.add_order(buy_order, buy_grid_level)
+            await self.notification_handler.async_send_notification(NotificationType.ORDER_PLACED, order_details=str(buy_order))  
         else:
             self.logger.error(f"Failed to place buy order at grid level {buy_grid_level}.")
 
@@ -304,6 +312,7 @@ class OrderManager:
             self.balance_tracker.reserve_funds_for_sell(sell_order.amount)
             self.grid_manager.mark_order_pending(sell_grid_level, sell_order)
             self.order_book.add_order(sell_order, sell_grid_level)
+            await self.notification_handler.async_send_notification(NotificationType.ORDER_PLACED, order_details=str(sell_order))  
         else:
             self.logger.error(f"Failed to place sell order at grid level {sell_grid_level}.")
                 
@@ -343,10 +352,11 @@ class OrderManager:
 
         except OrderExecutionFailedError as e:
             self.logger.error(f"Failed while executing initial purchase - {str(e)}", exc_info=True)
-            await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Failed to place order: {e}")
+            await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Error while performing initial purchase. {e}")
 
         except Exception as e:
             self.logger.error(f"Failed to perform initial purchase: at current_price: {current_price}", exc_info=True)
+            await self.notification_handler.async_send_notification(NotificationType.ORDER_FAILED, error_details=f"Error while performing initial purchase. {e}")
 
     async def execute_take_profit_or_stop_loss_order(
         self,
@@ -440,4 +450,4 @@ class OrderManager:
         order.status = OrderStatus.CLOSED
         order.last_trade_timestamp = timestamp
         self.logger.info(f"Simulated fill for {order.side.value.upper()} order at price {order.price} with amount {order.amount}. Filled at timestamp {timestamp}")
-        await self.event_bus.publish(Events.ORDER_COMPLETED, order)
+        await self.event_bus.publish(Events.ORDER_FILLED, order)

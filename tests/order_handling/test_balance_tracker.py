@@ -73,25 +73,25 @@ class TestBalanceTracker:
 
         assert balance_tracker.get_adjusted_crypto_balance() == 5
 
-    def test_update_after_buy_order_completed(self, setup_balance_tracker):
+    def test_update_after_buy_order_filled(self, setup_balance_tracker):
         balance_tracker, fee_calculator, _ = setup_balance_tracker
         balance_tracker.crypto_balance = 5
         fee_calculator.calculate_fee.return_value = 10
         balance_tracker.reserved_fiat = 500
 
-        balance_tracker._update_after_buy_order_completed(quantity=1, price=100)
+        balance_tracker._update_after_buy_order_filled(quantity=1, price=100)
 
         assert balance_tracker.crypto_balance == 6
         assert balance_tracker.total_fees == 10
         assert balance_tracker.reserved_fiat == 390
 
-    def test_update_after_sell_order_completed(self, setup_balance_tracker):
+    def test_update_after_sell_order_filled(self, setup_balance_tracker):
         balance_tracker, fee_calculator, _ = setup_balance_tracker
         balance_tracker.balance = 1000
         fee_calculator.calculate_fee.return_value = 10
         balance_tracker.reserved_crypto = 2
 
-        balance_tracker._update_after_sell_order_completed(quantity=1, price=200)
+        balance_tracker._update_after_sell_order_filled(quantity=1, price=200)
 
         assert balance_tracker.balance == 1190
         assert balance_tracker.total_fees == 10
@@ -126,7 +126,7 @@ class TestBalanceTracker:
 
     def test_event_subscription(self, setup_balance_tracker):
         balance_tracker, _, event_bus = setup_balance_tracker
-        event_bus.subscribe.assert_called_once_with(Events.ORDER_COMPLETED, balance_tracker._update_balance_on_order_completion)
+        event_bus.subscribe.assert_called_once_with(Events.ORDER_FILLED, balance_tracker._update_balance_on_order_completion)
     
     @pytest.mark.asyncio
     async def test_setup_balances_backtest(self, setup_balance_tracker):

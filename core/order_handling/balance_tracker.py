@@ -38,7 +38,7 @@ class BalanceTracker:
         self.reserved_fiat: float = 0.0
         self.reserved_crypto: float = 0.0
 
-        self.event_bus.subscribe(Events.ORDER_COMPLETED, self._update_balance_on_order_completion)
+        self.event_bus.subscribe(Events.ORDER_FILLED, self._update_balance_on_order_completion)
     
     async def setup_balances(
         self, 
@@ -88,22 +88,22 @@ class BalanceTracker:
 
     async def _update_balance_on_order_completion(self, order: Order) -> None:
         """
-        Updates the account balance and crypto balance when an order is completed.
+        Updates the account balance and crypto balance when an order is filled.
 
-        This method is called when an `ORDER_COMPLETED` event is received. It determines 
-        whether the completed order is a buy or sell order and updates the balances 
+        This method is called when an `ORDER_FILLED` event is received. It determines 
+        whether the filled order is a buy or sell order and updates the balances 
         accordingly.
 
         Args:
-            order: The completed `Order` object containing details such as the side 
+            order: The filled `Order` object containing details such as the side 
                 (BUY/SELL), filled quantity, and price.
         """
         if order.side == OrderSide.BUY:
-            self._update_after_buy_order_completed(order.filled, order.price)
+            self._update_after_buy_order_filled(order.filled, order.price)
         elif order.side == OrderSide.SELL:
-            self._update_after_sell_order_completed(order.filled, order.price)
+            self._update_after_sell_order_filled(order.filled, order.price)
 
-    def _update_after_buy_order_completed(
+    def _update_after_buy_order_filled(
         self, 
         quantity: float, 
         price: float
@@ -131,7 +131,7 @@ class BalanceTracker:
         self.total_fees += fee
         self.logger.info(f"Buy order completed: {quantity} crypto purchased at {price}.")
 
-    def _update_after_sell_order_completed(
+    def _update_after_sell_order_filled(
         self, 
         quantity: float, 
         price: float

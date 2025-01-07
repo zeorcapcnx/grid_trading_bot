@@ -1,23 +1,190 @@
-import asyncio
-import unittest
-from unittest.mock import AsyncMock, Mock, patch
+import asyncio, unittest
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from datetime import datetime, timedelta
 from core.bot_management.grid_trading_bot import GridTradingBot
 from core.bot_management.notification.notification_handler import NotificationHandler
-from core.bot_management.event_bus import EventBus, Events
-from core.bot_management.health_check import HealthCheck
-from utils.constants import RESSOURCE_THRESHOLDS
+from core.bot_management.notification.notification_content import NotificationType
+from core.bot_management.event_bus import EventBus
+from core.bot_management.health_check import HealthCheck, ResourceMetrics
 
 class TestHealthCheck(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.bot = Mock(spec=GridTradingBot)
         self.notification_handler = Mock(spec=NotificationHandler)
         self.event_bus = Mock(spec=EventBus)
-        self.health_check = HealthCheck(
+        
+        # Mock psutil.Process for initialization
+        with patch('psutil.Process') as mock_process:
+            process_instance = MagicMock()
+            mock_process.return_value = process_instance
+            process_instance.cpu_percent = Mock(return_value=0.0)
+            
+            self.health_check = HealthCheck(
+                bot=self.bot,
+                notification_handler=self.notification_handler,
+                event_bus=self.event_bus,
+                check_interval=1,  # Set a low interval for testing
+                metrics_history_size=5  # Small size for testing
+            )
+
+    @patch('psutil.Process')
+    def test_initialization(self, mock_process):
+        """Test that the HealthCheck is properly initialized with metrics history"""
+        health_check = HealthCheck(
             bot=self.bot,
             notification_handler=self.notification_handler,
-            event_bus=self.event_bus,
-            check_interval=1  # Set a low interval for testing
+            event_bus=self.event_bus
         )
+        
+        self.assertEqual(health_check.metrics_history_size, 60)
+        self.assertEqual(len(health_check._metrics_history), 0)
+        mock_process.return_value.cpu_percent.assert_called_once()
+
+    @patch("psutil.cpu_percent", return_value=95)
+    @patch("psutil.virtual_memory")
+    @patch("psutil.disk_usage")
+    @patch("psutil.Process")
+    def test_check_resource_usage(self, mock_process, mock_disk_usage, mock_virtual_memory, mock_cpu_percent):
+        mock_virtual_memory.return_value.percent = 85
+        mock_disk_usage.return_value.percent = 10
+        
+        process_instance = MagicMock()
+        mock_process.return_value = process_instance        
+        process_instance.memory_info.return_value.rss = 100000000
+        process_instance.open_files.return_value = []
+        process_instance.num_threads.return_value = 4
+        
+        usage = self.health_check._check_resource_usage()
+        
+        self.assertEqual(usage["cpu"], 95)
+        self.assertEqual(usage["memory"], 85)
+        self.assertEqual(usage["disk"], 10)
+
+    async def test_resource_metrics_collection(self):
+        """Test that resource metrics are properly collected and stored"""
+        with patch('psutil.Process') as mock_process, \
+            patch('psutil.cpu_percent') as mock_cpu, \
+            patch('psutil.virtual_memory') as mock_memory, \
+            patch('psutil.disk_usage') as mock_disk:
+            
+            # Setup mock returns
+            mock_cpu.return_value = 50.0
+            mock_memory.return_value.percent = 60.0
+            mock_memory.return_value.total = 16000000000  # 16GB
+            mock_memory.return_value.available = 8000000000  # 8GB
+            mock_disk.return_value.percent = 70.0
+            
+            # Create a mock process instance
+            process_instance = MagicMock()
+            mock_process.return_value = process_instance            
+            process_instance.cpu_percent.return_value = 25.0            
+            process_instance.open_files.return_value = ['file1', 'file2']
+
+            metrics = self.health_check._check_resource_usage()
+
+            self.assertEqual(metrics['cpu'], 50.0)
+            self.assertEqual(metrics['memory'], 60.0)
+            self.assertEqual(metrics['disk'], 70.0)
+            self.assertEqual(metrics['memory_available_mb'], 8000000000 / (1024 * 1024))            
+
+    def test_metrics_history_management(self):
+        """Test that metrics history is properly managed"""
+        # Create some test metrics
+        for i in range(10):  # More than metrics_history_size
+            metrics = ResourceMetrics(
+                timestamp=datetime.now() + timedelta(minutes=i),
+                cpu_percent=50.0 + i,
+                memory_percent=60.0 + i,
+                disk_percent=70.0,
+                bot_cpu_percent=25.0,
+                bot_memory_mb=100.0,
+                open_files=2,
+                thread_count=4
+            )
+            self.health_check._metrics_history.append(metrics)
+            if len(self.health_check._metrics_history) > self.health_check.metrics_history_size:
+                self.health_check._metrics_history.pop(0)
+
+        self.assertEqual(len(self.health_check._metrics_history), 5)  # Should match metrics_history_size
+        self.assertGreater(self.health_check._metrics_history[-1].cpu_percent, self.health_check._metrics_history[0].cpu_percent)
+
+    def test_resource_trends_calculation(self):
+        """Test that resource usage trends are correctly calculated"""
+        now = datetime.now()
+        one_hour_ago = now - timedelta(hours=1)
+        
+        self.health_check._metrics_history = [
+            ResourceMetrics(
+                timestamp=one_hour_ago,
+                cpu_percent=50.0,
+                memory_percent=60.0,
+                disk_percent=70.0,
+                bot_cpu_percent=25.0,
+                bot_memory_mb=100.0,
+                open_files=2,
+                thread_count=4
+            ),
+            ResourceMetrics(
+                timestamp=now,
+                cpu_percent=60.0,  # 10% increase over 1 hour
+                memory_percent=70.0,  # 10% increase
+                disk_percent=70.0,
+                bot_cpu_percent=35.0,  # 10% increase
+                bot_memory_mb=120.0,  # 20MB increase
+                open_files=2,
+                thread_count=4
+            )
+        ]
+
+        trends = self.health_check.get_resource_trends()
+
+        self.assertAlmostEqual(trends['cpu_trend'], 10.0, places=2)
+        self.assertAlmostEqual(trends['memory_trend'], 10.0, places=2)
+        self.assertAlmostEqual(trends['bot_cpu_trend'], 10.0, places=2)
+        self.assertAlmostEqual(trends['bot_memory_trend'], 20.0, places=2)
+
+    async def test_resource_alerts_with_trends(self):
+        """Test that resource alerts include trend information"""
+        # Setup resource history
+        self.health_check._metrics_history = [
+            ResourceMetrics(
+                timestamp=datetime.now() - timedelta(hours=1),
+                cpu_percent=80.0,
+                memory_percent=70.0,
+                disk_percent=70.0,
+                bot_cpu_percent=25.0,
+                bot_memory_mb=100.0,
+                open_files=2,
+                thread_count=4
+            ),
+            ResourceMetrics(
+                timestamp=datetime.now(),
+                cpu_percent=95.0,
+                memory_percent=85.0,
+                disk_percent=70.0,
+                bot_cpu_percent=35.0,
+                bot_memory_mb=150.0,
+                open_files=2,
+                thread_count=4
+            )
+        ]
+
+        usage = {
+            "cpu": 95.0,
+            "memory": 85.0,
+            "disk": 70.0,
+            "bot_cpu": 35.0,
+            "bot_memory_mb": 150.0
+        }
+
+        await self.health_check._check_and_alert_resource_usage(usage)
+
+        # Verify that notifications include trend information
+        self.notification_handler.async_send_notification.assert_awaited_once()
+        call_args = self.notification_handler.async_send_notification.await_args[1]
+        self.assertIn("Trend: increasing", call_args['alert_details'])
+        self.assertIn("CPU usage is high: 95.0%", call_args['alert_details'])
+        self.assertIn("MEMORY usage is high: 85.0%", call_args['alert_details'])
 
     async def test_start_and_stop(self):
         self.health_check._perform_checks = AsyncMock()
@@ -69,62 +236,44 @@ class TestHealthCheck(unittest.IsolatedAsyncioTestCase):
 
     async def test_check_and_alert_bot_health_with_alerts(self):
         health_status = {"strategy": False, "exchange_status": "maintenance"}
-        self.health_check._send_alert = AsyncMock()
 
         await self.health_check._check_and_alert_bot_health(health_status)
 
-        self.health_check._send_alert.assert_awaited_once_with("Trading strategy has encountered issues. | Exchange status is not ok: maintenance")
+        self.notification_handler.async_send_notification.assert_awaited_once_with(
+            NotificationType.HEALTH_CHECK_ALERT,
+            alert_details="Trading strategy has encountered issues. | Exchange status is not ok: maintenance"
+        )
 
     async def test_check_and_alert_bot_health_no_alerts(self):
         health_status = {"strategy": True, "exchange_status": "ok"}
-        self.health_check._send_alert = AsyncMock()
-
+        
         await self.health_check._check_and_alert_bot_health(health_status)
 
-        self.health_check._send_alert.assert_not_awaited()
+        self.notification_handler.async_send_notification.assert_not_awaited()
 
     async def test_check_and_alert_resource_usage_with_alerts(self):
         usage = {"cpu": 95, "memory": 85, "disk": 10}
-        self.health_check._send_alert = AsyncMock()
-
+        
+        # Initialize empty metrics history to get "stable" trend
+        self.health_check._metrics_history = []
+        
         await self.health_check._check_and_alert_resource_usage(usage)
-
-        expected_message = "CPU usage is high: 95% (Threshold: 90%) | MEMORY usage is high: 85% (Threshold: 80%)"
-        self.health_check._send_alert.assert_awaited_once_with(expected_message)
+        
+        expected_message = (
+            "CPU usage is high: 95.0% (Threshold: 90%, Trend: stable) | "
+            "MEMORY usage is high: 85.0% (Threshold: 80%, Trend: stable)"
+        )
+        self.notification_handler.async_send_notification.assert_awaited_once_with(
+            NotificationType.HEALTH_CHECK_ALERT,
+            alert_details=expected_message
+        )
 
     async def test_check_and_alert_resource_usage_no_alerts(self):
         usage = {"cpu": 10, "memory": 10, "disk": 10}
-        self.health_check._send_alert = AsyncMock()
-
+        
         await self.health_check._check_and_alert_resource_usage(usage)
 
-        self.health_check._send_alert.assert_not_awaited()
-
-    @patch("psutil.cpu_percent", return_value=95)
-    @patch("psutil.virtual_memory")
-    @patch("psutil.disk_usage")
-    @patch("psutil.Process")
-    def test_check_resource_usage(self, mock_process, mock_disk_usage, mock_virtual_memory, mock_cpu_percent):
-        mock_virtual_memory.return_value.percent = 85
-        mock_disk_usage.return_value.percent = 10
-        mock_process.return_value.cpu_percent.return_value = 20
-        mock_process.return_value.memory_percent.return_value = 30
-
-        usage = self.health_check._check_resource_usage()
-
-        self.assertEqual(usage["cpu"], 95)
-        self.assertEqual(usage["memory"], 85)
-        self.assertEqual(usage["disk"], 10)
-        self.assertEqual(usage["bot_cpu"], 20)
-        self.assertEqual(usage["bot_memory"], 30)
-
-    async def test_send_alert(self):
-        self.notification_handler.async_send_notification = AsyncMock()
-        message = "Test Alert"
-
-        await self.health_check._send_alert(message)
-
-        self.notification_handler.async_send_notification.assert_awaited_once_with("Health Check Alert", message=message)
+        self.notification_handler.async_send_notification.assert_not_awaited()
 
     async def test_start_already_running(self):
         self.health_check._is_running = True
@@ -141,3 +290,13 @@ class TestHealthCheck(unittest.IsolatedAsyncioTestCase):
         self.health_check._handle_stop("Already stopped")
 
         self.health_check.logger.warning.assert_called_once_with("HealthCheck is not running.")
+
+    async def asyncTearDown(self):
+        """Clean up any pending tasks after each test"""
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        for task in tasks:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass

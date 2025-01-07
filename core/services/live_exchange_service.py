@@ -158,8 +158,8 @@ class LiveExchangeService(ExchangeInterface):
 
     async def fetch_order(
         self, 
-        pair: str,
-        order_id: str
+        order_id: str,
+        pair: str
     ) -> Dict[str, Union[str, float]]:
         try:
             return await self.exchange.fetch_order(order_id, pair)

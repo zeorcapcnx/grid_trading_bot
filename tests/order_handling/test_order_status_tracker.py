@@ -56,8 +56,8 @@ class TestOrderStatusTracker:
             tracker._handle_order_status_change(mock_local_order, mock_remote_order)
     
             order_book.update_order_status.assert_called_once_with("order_1", OrderStatus.CLOSED)
-            event_bus.publish_sync.assert_called_once_with(Events.ORDER_COMPLETED, mock_local_order)
-            mock_logger_info.assert_called_once_with("Order order_1 completed.")
+            event_bus.publish_sync.assert_called_once_with(Events.ORDER_FILLED, mock_local_order)
+            mock_logger_info.assert_called_once_with("Order order_1 filled.")
 
     def test_handle_order_status_change_canceled(self, setup_tracker):
         tracker, order_book, _, event_bus = setup_tracker

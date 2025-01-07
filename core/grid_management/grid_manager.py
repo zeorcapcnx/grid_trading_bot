@@ -253,7 +253,6 @@ class GridManager:
         else:
             self.logger.error("Unexpected strategy type")
 
-    
     def can_place_order(
         self, 
         grid_level: GridLevel, 
