@@ -99,9 +99,9 @@ class OrderStatusTracker:
                 self.logger.warning(f"Order {remote_order.identifier} was canceled.")
             elif remote_order.status == OrderStatus.OPEN:  # Still open
                 if remote_order.filled > 0:
-                    self.logger.info(f"Order {remote_order.identifier} partially filled. Filled: {remote_order.filled}, Remaining: {remote_order.remaining}.")
+                    self.logger.info(f"Order {remote_order} partially filled. Filled: {remote_order.filled}, Remaining: {remote_order.remaining}.")
                 else:
-                    self.logger.info(f"Order {remote_order.identifier} is still open. No fills yet.")
+                    self.logger.info(f"Order {remote_order} is still open. No fills yet.")
             else:
                 self.logger.warning(f"Unhandled order status '{remote_order.status}' for order {remote_order.identifier}.")
 

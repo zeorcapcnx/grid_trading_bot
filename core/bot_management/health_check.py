@@ -137,7 +137,7 @@ class HealthCheck:
         # Get process-specific metrics
         try:
             bot_memory_info = self.process.memory_info()
-            bot_cpu_percent = self.process.cpu_percent(interval=1)
+            bot_cpu_percent = self.process.cpu_percent()
             open_files = len(self.process.open_files())
             thread_count = self.process.num_threads()
             
@@ -191,6 +191,9 @@ class HealthCheck:
         recent = self._metrics_history[-1]
         old = self._metrics_history[0]
         time_diff = (recent.timestamp - old.timestamp).total_seconds() / 3600  # hours
+
+        if time_diff < 0.016667:  # Less than 1 minute
+            return {}
         
         return {
             "cpu_trend": (recent.cpu_percent - old.cpu_percent) / time_diff,
@@ -211,20 +214,27 @@ class HealthCheck:
             current_value = usage.get(resource, 0)
             if current_value > threshold:
                 trend = trends.get(f"{resource}_trend", 0)
-                trend_direction = "increasing" if trend > 0 else "decreasing" if trend < 0 else "stable"
+                trend_direction = "increasing" if trend > 1 else "decreasing" if trend < -1 else "stable"
                 message = (
                     f"{resource.upper()} usage is high: {current_value:.1f}% "
                     f"(Threshold: {threshold}%, Trend: {trend_direction})"
                 )
                 alerts.append(message)
 
-        # Check for memory leaks
-        if trends.get("bot_memory_trend", 0) > 10:  # MB/hour
-            alerts.append(f"Possible memory leak detected: Bot memory usage increasing by "
-                        f"{trends['bot_memory_trend']:.1f} MB/hour")
+        # Check for memory leaks - adjusted thresholds
+        if trends.get("bot_memory_trend", 0) > 50:
+            old_memory = self._metrics_history[0].bot_memory_mb
+            recent_memory = self._metrics_history[-1].bot_memory_mb
+            if old_memory > 0:
+                percent_increase = ((recent_memory - old_memory) / old_memory) * 100
+                if percent_increase > 20:  # Only alert if more than 20% increase
+                    alerts.append(
+                        f"Possible memory leak detected: Bot memory usage increased by "
+                        f"{percent_increase:.1f}% ({trends['bot_memory_trend']:.1f} MB/hour)"
+                    )
 
         # Check for CPU spikes
-        if trends.get("bot_cpu_trend", 0) > 5:  # %/hour
+        if trends.get("bot_cpu_trend", 0) > 10:  # %/hour
             alerts.append(f"High CPU usage trend: Bot CPU usage increasing by "
                         f"{trends['bot_cpu_trend']:.1f}%/hour")
 

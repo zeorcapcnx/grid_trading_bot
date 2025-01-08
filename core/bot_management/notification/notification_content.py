@@ -25,7 +25,7 @@ class NotificationType(Enum):
     )
     ERROR_OCCURRED = NotificationContent(
         title="Error Occurred",
-        message="An error occurred in the trading bot:\n{error_details}."
+        message="An error occurred in the trading bot:\n{error_details}"
     )
     TAKE_PROFIT_TRIGGERED = NotificationContent(
         title="Take Profit Triggered",
@@ -37,5 +37,5 @@ class NotificationType(Enum):
     )
     HEALTH_CHECK_ALERT = NotificationContent(
         title="Health Check Alert",
-        message=("Failed to place order:\n{alert_details}")
+        message=("{alert_details}")
     )

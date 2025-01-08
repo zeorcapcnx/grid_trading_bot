@@ -53,7 +53,7 @@ class OrderManager:
         """
         for price in self.grid_manager.sorted_buy_grids:
             if price >= current_price:
-                self.logger.warning(f"Skipping grid level at price: {price} for BUY order: Above current price.")
+                self.logger.info(f"Skipping grid level at price: {price} for BUY order: Above current price.")
                 continue
 
             grid_level = self.grid_manager.grid_levels[price]
@@ -90,11 +90,11 @@ class OrderManager:
 
                 except Exception as e:
                     self.logger.error(f"Unexpected error during buy order initialization at grid level {price}: {e}", exc_info=True)
-                    await self.notification_handler.async_send_notification(NotificationType.ERROR_OCCURRED, error_details=f"Error while placing initial buy order. {e}")
+                    await self.notification_handler.async_send_notification(NotificationType.ERROR_OCCURRED, error_details=f"Error while placing initial buy order: {str(e)}")
         
         for price in self.grid_manager.sorted_sell_grids:
             if price <= current_price:
-                self.logger.warning(f"Skipping grid level at price: {price} for SELL order: Below or equal to current price.")
+                self.logger.info(f"Skipping grid level at price: {price} for SELL order: Below or equal to current price.")
                 continue
 
             grid_level = self.grid_manager.grid_levels[price]
@@ -130,7 +130,7 @@ class OrderManager:
 
                 except Exception as e:
                     self.logger.error(f"Unexpected error during sell order initialization at grid level {price}: {e}", exc_info=True)
-                    await self.notification_handler.async_send_notification(NotificationType.ERROR_OCCURRED, error_details=f"Error while placing initial sell order. {e}")
+                    await self.notification_handler.async_send_notification(NotificationType.ERROR_OCCURRED, error_details=f"Error while placing initial sell order: {str(e)}")
 
     async def _on_order_cancelled(
         self, 
