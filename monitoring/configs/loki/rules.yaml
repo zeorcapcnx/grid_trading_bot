@@ -1,12 +1,20 @@
 groups:
-    - name: log-rules
+    - name: grid_trading_alerts
       rules:
-        - alert: HighErrorRate
+        - alert: HighCPUUsage
           expr: |
-            sum(rate({job="grid_trading_bot", level="error"}[5m])) > 0.01
+            avg_over_time({job="grid_trading_bot"} | json | unwrap cpu [5m]) > 80
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: High CPU usage detected
+          
+        - alert: OrderExecutionFailure
+          expr: |
+            count_over_time({job="grid_trading_bot"} |= "Failed to execute order" [5m]) > 3
           for: 1m
           labels:
             severity: critical
           annotations:
-            description: High error rate detected in logs for job {{ $labels.job }} is above 0.01.
-            summary: High error rate detected in logs
+            summary: Multiple order execution failures detected

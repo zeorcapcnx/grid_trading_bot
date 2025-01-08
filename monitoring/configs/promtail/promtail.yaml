@@ -1,6 +1,7 @@
 server:
   http_listen_port: 9080
   grpc_listen_port: 0
+  log_level: debug
 
 positions:
   filename: /tmp/positions.yaml
@@ -16,3 +17,47 @@ scrape_configs:
         labels:
           job: grid_trading_bot
           __path__: /logs/**/*.log
+    pipeline_stages:
+      # Extract detailed info from filename
+      - regex:
+          source: filename
+          expression: 'bot_(?P<base>[A-Z]+)_(?P<quote>[A-Z]+)_(?P<mode>[A-Z]+)_strategy(?P<strategy>[A-Z_]+)_spacing(?P<spacing>[A-Z]+)_size(?P<size>\d+)_range(?P<range>\d+-\d+)_.*\.log'
+      - labels:
+          trading_pair: '{{ .base }}/{{ .quote }}'
+          trading_mode: '{{ .mode }}'
+          strategy_type: '{{ .strategy }}'
+          spacing_type: '{{ .spacing }}'
+          grid_size: '{{ .size }}'
+          grid_range: '{{ .range }}'
+      
+      # Extract ticker price from log lines
+      - regex:
+          expression: 'Connected to WebSocket for (?P<trading_pair>[A-Z/]+) ticker current price: (?P<current_price>\d+\.\d+)'
+      - labels:
+          current_price: '{{ .current_price }}'
+      
+      # Extract system metrics from log lines
+      - regex:
+          expression: 'System resource usage: \{\'cpu\': (?P<cpu>\d+\.\d+), \'memory\': (?P<memory>\d+\.\d+), \'disk\': (?P<disk>\d+\.\d+), \'bot_cpu\': (?P<bot_cpu>\d+\.\d+), \'bot_memory\': (?P<bot_memory>\d+\.\d+)\}'
+      - labels:
+          cpu: '{{ .cpu }}'
+          memory: '{{ .memory }}'
+          disk: '{{ .disk }}'
+          bot_cpu: '{{ .bot_cpu }}'
+          bot_memory: '{{ .bot_memory }}'
+      
+      - regex:
+          expression: 'Fetched bot health status: .*\'exchange_status\': \'(?P<exchange_status>\w+)\''
+      - labels:
+          exchange_status: '{{ .exchange_status }}'
+      
+      # Parse log lines
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3})\s+-\s+(?P<component>[\w]+)\s+-\s+(?P<level>\w+)\s+-\s+(?P<message>.*)$'
+      - labels:
+          component:
+          level:
+      
+      - timestamp:
+          source: timestamp
+          format: "2006-01-02 15:04:05,000"
