@@ -221,18 +221,6 @@ class HealthCheck:
                 )
                 alerts.append(message)
 
-        # Check for memory leaks - adjusted thresholds
-        if trends.get("bot_memory_trend", 0) > 50:
-            old_memory = self._metrics_history[0].bot_memory_mb
-            recent_memory = self._metrics_history[-1].bot_memory_mb
-            if old_memory > 0:
-                percent_increase = ((recent_memory - old_memory) / old_memory) * 100
-                if percent_increase > 20:  # Only alert if more than 20% increase
-                    alerts.append(
-                        f"Possible memory leak detected: Bot memory usage increased by "
-                        f"{percent_increase:.1f}% ({trends['bot_memory_trend']:.1f} MB/hour)"
-                    )
-
         # Check for CPU spikes
         if trends.get("bot_cpu_trend", 0) > 10:  # %/hour
             alerts.append(f"High CPU usage trend: Bot CPU usage increasing by "

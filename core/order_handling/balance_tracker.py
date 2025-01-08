@@ -1,7 +1,7 @@
 import logging
 from config.trading_mode import TradingMode
 from .fee_calculator import FeeCalculator
-from .order import Order, OrderSide
+from .order import Order, OrderSide, OrderStatus
 from core.bot_management.event_bus import EventBus, Events
 from ..validation.exceptions import InsufficientBalanceError, InsufficientCryptoBalanceError
 from core.services.exchange_interface import ExchangeInterface
@@ -158,6 +158,24 @@ class BalanceTracker:
         self.balance += sale_proceeds
         self.total_fees += fee
         self.logger.info(f"Sell order completed: {quantity} crypto sold at {price}.")
+    
+    def update_after_initial_purchase(self, initial_order: Order):
+        """
+        Updates balances after an initial crypto purchase.
+
+        Args:
+            initial_order: The Order object containing details of the completed purchase.
+        """
+        if initial_order.status != OrderStatus.FILLED:
+            raise ValueError(f"Order {initial_order.id} is not FILLED. Cannot update balances.")
+    
+        total_cost = initial_order.filled * initial_order.average
+        fee = self.fee_calculator.calculate_fee(initial_order.amount * initial_order.average)
+        
+        self.crypto_balance += initial_order.filled
+        self.balance -= total_cost + fee
+        self.total_fees += fee
+        self.logger.info(f"Updated balances. Crypto balance: {self.crypto_balance}, Fiat balance: {self.balance}, Total fees: {self.total_fees}")
 
     def reserve_funds_for_buy(
         self, 

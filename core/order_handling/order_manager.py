@@ -352,6 +352,9 @@ class OrderManager:
 
             if self.trading_mode == TradingMode.BACKTEST:
                 await self._simulate_fill(buy_order, buy_order.timestamp)
+            else:
+                # Update fiat and crypto balance in LIVE & PAPER_TRADING modes without simulating it
+                self.balance_tracker.update_after_initial_purchase(initial_order=buy_order)
 
         except OrderExecutionFailedError as e:
             self.logger.error(f"Failed while executing initial purchase - {str(e)}", exc_info=True)
@@ -450,7 +453,8 @@ class OrderManager:
         """
         order.filled = order.amount
         order.remaining = 0.0
-        order.status = OrderStatus.CLOSED
+        order.status = OrderStatus.CLOSED 
+        order.timestamp = timestamp
         order.last_trade_timestamp = timestamp
         timestamp_in_seconds = timestamp / 1000 if timestamp > 10**10 else timestamp
         formatted_timestamp = datetime.fromtimestamp(timestamp_in_seconds).strftime('%Y-%m-%d %H:%M:%S')
