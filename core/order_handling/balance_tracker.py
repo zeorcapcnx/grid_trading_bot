@@ -166,8 +166,8 @@ class BalanceTracker:
         Args:
             initial_order: The Order object containing details of the completed purchase.
         """
-        if initial_order.status != OrderStatus.FILLED:
-            raise ValueError(f"Order {initial_order.id} is not FILLED. Cannot update balances.")
+        if initial_order.status != OrderStatus.CLOSED:
+            raise ValueError(f"Order {initial_order.id} is not CLOSED. Cannot update balances.")
     
         total_cost = initial_order.filled * initial_order.average
         fee = self.fee_calculator.calculate_fee(initial_order.amount * initial_order.average)
