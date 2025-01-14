@@ -3,7 +3,7 @@ auth_enabled: false
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
-  log_level: info
+  log_level: debug
 
 common:
   instance_addr: 127.0.0.1
@@ -22,8 +22,8 @@ frontend:
 
 limits_config:
   max_global_streams_per_user: 1000
-  ingestion_rate_mb: 50
-  ingestion_burst_size_mb: 50
+  ingestion_rate_mb: 500
+  ingestion_burst_size_mb: 500
   volume_enabled: true
 
 query_range:

@@ -9,7 +9,6 @@ groups:
             severity: warning
           annotations:
             summary: High CPU usage detected
-          
         - alert: OrderExecutionFailure
           expr: |
             count_over_time({job="grid_trading_bot"} |= "Failed to execute order" [5m]) > 3

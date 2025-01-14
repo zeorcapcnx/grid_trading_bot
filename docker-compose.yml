@@ -52,7 +52,7 @@ services:
       - ./monitoring/configs/promtail/promtail.yaml:/etc/promtail/promtail.yaml
       - ./logs:/logs:ro
       - promtail-positions:/tmp
-    command: -config.file=/etc/promtail/promtail.yaml
+    command: -config.file=/etc/promtail/promtail.yaml -config.expand-env=true
     depends_on:
       - loki
     cpus: 0.5
