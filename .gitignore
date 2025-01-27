@@ -44,6 +44,9 @@ profile_results.prof
 # Secrets
 secrets.json
 .env.yml
+.env
+loki-data/
+grafana-data/
 
 # Conda
 conda_packages.txt
@@ -51,8 +54,3 @@ conda_packages.txt
 # Project specific
 /data/
 logs/*
-
-# Secrets
-.env
-loki-data/
-grafana-data/

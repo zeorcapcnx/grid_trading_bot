@@ -23,7 +23,8 @@ scrape_configs:
           source: filename
           expression: 'bot_(?P<base>[A-Z]+)_(?P<quote>[A-Z]+)_(?P<mode>[A-Z]+)_strategy(?P<strategy>[A-Z_]+)_spacing(?P<spacing>[A-Z]+)_size(?P<size>\d+)_range(?P<range>\d+-\d+)_.*\.log'
       - labels:
-          trading_pair: '{{ .base }}/{{ .quote }}'
+          base_currency: '{{ .base }}'
+          quote_currency: '{{ .quote }}'
           trading_mode: '{{ .mode }}'
           strategy_type: '{{ .strategy }}'
           spacing_type: '{{ .spacing }}'
@@ -32,32 +33,31 @@ scrape_configs:
       
       # Extract ticker price from log lines
       - regex:
-          expression: 'Connected to WebSocket for (?P<trading_pair>[A-Z/]+) ticker current price: (?P<current_price>\d+\.\d+)'
+          expression: '^(?P<timestamp>\S+ \S+),\d+ - (?P<service>\S+) - (?P<level>\S+) - Connected to WebSocket for (?P<trading_pair>\S+USDT) ticker current price: (?P<current_price>\d+\.\d+)'
       - labels:
+          timestamp: '{{ .timestamp }}'
+          service: '{{ .service }}'
+          level: '{{ .level }}'
+          trading_pair: '{{ .trading_pair }}'
           current_price: '{{ .current_price }}'
-      
-      # Extract system metrics from log lines
+
+      # Regex for other types of logs (non-WebSocket related)
       - regex:
-          expression: 'System resource usage: \{\'cpu\': (?P<cpu>\d+\.\d+), \'memory\': (?P<memory>\d+\.\d+), \'disk\': (?P<disk>\d+\.\d+), \'bot_cpu\': (?P<bot_cpu>\d+\.\d+), \'bot_memory\': (?P<bot_memory>\d+\.\d+)\}'
+          source: message
+          expression: '^(?P<timestamp>\S+ \S+),(?P<ms>\d+) - (?P<service>\S+) - (?P<level>\S+) - .+'
       - labels:
-          cpu: '{{ .cpu }}'
-          memory: '{{ .memory }}'
-          disk: '{{ .disk }}'
-          bot_cpu: '{{ .bot_cpu }}'
-          bot_memory: '{{ .bot_memory }}'
+          timestamp: '{{ .timestamp }} {{ .ms }}'
+          service: '{{ .service }}'
+          level: '{{ .level }}'
       
+      # Fallback regex to capture any other log lines that don't match the above patterns
       - regex:
-          expression: 'Fetched bot health status: .*\'exchange_status\': \'(?P<exchange_status>\w+)\''
+          source: message
+          expression: '.+'
       - labels:
-          exchange_status: '{{ .exchange_status }}'
+          default: 'true'
       
-      # Parse log lines
-      - regex:
-          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3})\s+-\s+(?P<component>[\w]+)\s+-\s+(?P<level>\w+)\s+-\s+(?P<message>.*)$'
-      - labels:
-          component:
-          level:
-      
-      - timestamp:
-          source: timestamp
-          format: "2006-01-02 15:04:05,000"
+      # Output stage: Pass timestamp as the source
+      - output:
+          source: message
+          format: '{{ .timestamp }} - {{ .level }} - {{ .message }}'
