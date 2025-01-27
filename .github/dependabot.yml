@@ -1,18 +1,19 @@
 version: 2
 updates:
-  - package-ecosystem: "conda"
+  - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
     ignore:
+      # Ignoring these dependencies temporarily for compatibility
       - dependency-name: "numpy"
       - dependency-name: "pandas"
     labels:
-        - "dependencies"
+        - "pip-dependencies"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
       labels:
         - "actions"

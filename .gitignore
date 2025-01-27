@@ -48,8 +48,8 @@ secrets.json
 loki-data/
 grafana-data/
 
-# Conda
-conda_packages.txt
+# `uv` Package Manager
+.uv/
 
 # Project specific
 /data/
