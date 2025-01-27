@@ -16,24 +16,22 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Miniconda
-      uses: goanpeca/setup-miniconda@v2
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+    
+    - name: "Set up Python"
+      uses: actions/setup-python@v5
       with:
-        auto-update-conda: true
-        python-version: 3.12
-
-    - name: Create or update Conda environment
-      shell: bash -l {0}
-      run: |
-        conda env create --file environment.yml --name GridTradingBot || conda env update --file environment.yml --name GridTradingBot
+        python-version-file: "pyproject.toml"
+    
+    - name: Install the project
+        run: uv sync --all-extras --dev
 
     - name: Set PYTHONPATH
       run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
     
     - name: Run tests and upload coverage
-      run: |
-        conda run -n GridTradingBot python -m pip install --upgrade pip
-        conda run -n GridTradingBot pytest --cov=core --cov=config --cov=strategies --cov=utils --cov-report=xml:coverage.xml --cov-report=term --cov-config=pytest.ini     
+      run: uv run pytest --cov=core --cov=config --cov=strategies --cov=utils --cov-report=xml:coverage.xml --cov-report=term
       continue-on-error: true
 
     - name: Upload coverage reports to Codecov
