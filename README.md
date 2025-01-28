@@ -106,9 +106,9 @@ This project leverages [uv](https://github.com/astral-sh/uv) for managing virtua
 
 1. **Install `uv` (if not already installed)**  
    Ensure `uv` is installed on your system. If not, install it with `pip`:
-   ```sh
-   pip install uv
-   ```
+  ```sh
+  pip install uv
+  ```
 
 2. **Clone the repository**:
   ```sh
@@ -122,7 +122,7 @@ This project leverages [uv](https://github.com/astral-sh/uv) for managing virtua
    uv sync --all-extras --dev
   ```
 
-#### Using venv and pip (Alternative)
+#### Using `venv` and `pip` (Alternative)
 
 1. **Clone the repository**:
   ```sh
