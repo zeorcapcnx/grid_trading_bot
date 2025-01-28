@@ -15,14 +15,14 @@ dependencies = [
     "apprise==1.9.2",
     "ccxt==4.4.29",
     "configparser==7.1.0",
-    "psutil==6.1.0",
+    "psutil==6.1.1",
     "python-dotenv==1.0.1"
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest==8.3.3",
-    "pytest-asyncio==0.24.0",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.2",
     "pytest-cov==6.0.0",
     "pytest-timeout==2.3.1",
 ]
