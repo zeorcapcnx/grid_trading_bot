@@ -28,6 +28,7 @@ Open-source Grid Trading Bot implemented in Python, allowing you to backtest and
   - [Saving Performance Results](#saving-performance-results)
   - [Disabling Plots](#disabling-plots)
   - [Combining Options](#combining-options)
+  - [Available Command-Line Arguments](#available-command-line-arguments)
 - [📊 Docker Compose for Logs Management](#-docker-compose-for-logs-management)
   - [Steps to Set Up](#steps-to-set-up)
 - [🤝 Contributing](#-contributing)
@@ -97,9 +98,31 @@ As the price fluctuates, buy orders are executed at lower levels and sell orders
 
 ### Prerequisites
 
-Ensure you have [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html) installed on your machine.
+This project leverages [uv](https://github.com/astral-sh/uv) for managing virtual environments and dependencies. Below, you’ll find instructions for getting started with uv, along with an alternative approach using **venv**. While not covered in detail here, you can also easily set up the project using **Poetry**.
 
 ### Setting Up the Environment
+
+#### Using `uv` (Recommended)
+
+1. **Install `uv` (if not already installed)**  
+   Ensure `uv` is installed on your system. If not, install it with `pip`:
+   ```sh
+   pip install uv
+   ```
+
+2. **Clone the repository**:
+  ```sh
+  git clone https://github.com/jordantete/grid_trading_bot.git
+  cd grid_trading_bot
+  ```
+
+3.  **Install Dependencies and Set Up Virtual Environment**:
+  Run the following command to automatically set up a virtual environment and install all dependencies defined in `pyproject.toml`:
+  ```sh
+   uv sync --all-extras --dev
+  ```
+
+#### Using venv and pip (Alternative)
 
 1. **Clone the repository**:
   ```sh
@@ -107,15 +130,22 @@ Ensure you have [Conda](https://docs.conda.io/projects/conda/en/latest/user-guid
   cd grid_trading_bot
   ```
 
-2.  **Create the Conda environment**:
+2. **Set up a virtual environment**:
+  Create and activate a virtual environment:
+
   ```sh
-  conda env create -f environment.yml
+  python3 -m venv .venv
+  source .venv/bin/activate  # On Windows: .venv\Scripts\activate
   ```
 
-3.	**Activate the environment**: 
+2. **Install dependencies**:
+  Use pip to install the dependencies listed in `pyproject.toml`:
+
   ```sh
-  conda activate grid_trading_bot
+  pip install -r requirements.txt
   ```
+  
+  Note: You may need to generate a requirements.txt file from pyproject.toml if it’s not already present. You can use a tool like pipreqs or manually extract dependencies.
 
 ## 📋 Configuration
 
@@ -230,44 +260,56 @@ GRAFANA_ADMIN_PASSWORD=YourGrafanaPasswordHere
 
 **Environment Variables Breakdown**
 
-- EXCHANGE_API_KEY: Your API key for the exchange.
-- EXCHANGE_SECRET_KEY: Your secret key for the exchange.
-- APPRISE_NOTIFICATION_URLS: URLs for notifications (e.g., Telegram bot, Discord Server). For detailed setup instructions, visit the [Apprise GitHub repository](https://github.com/caronc/apprise).
-- GRAFANA_ADMIN_USER: Admin username for Grafana.
-- GRAFANA_ADMIN_PASSWORD: Admin password for Grafana.
+- `EXCHANGE_API_KEY`: Your API key for the exchange.
+- `EXCHANGE_SECRET_KEY`: Your secret key for the exchange.
+- `APPRISE_NOTIFICATION_URLS`: URLs for notifications (e.g., Telegram bot, Discord Server). For detailed setup instructions, visit the [Apprise GitHub repository](https://github.com/caronc/apprise).
+- `GRAFANA_ADMIN_USER`: Admin username for Grafana.
+- `GRAFANA_ADMIN_PASSWORD`: Admin password for Grafana.
 
 ## 🏃 Running the Bot
 
 To run the bot, use the following command:
 
+> **Note:** If you're using `uv` to manage your virtual environment, make sure to prefix the command with `uv run` to ensure it runs within the environment.
+
 ### Basic Usage:
   ```sh
-  grid_trading_bot --config config/config.json
+  uv run python main.py --config config/config.json
   ```
 
 ### Multiple Configurations:
 If you want to run the bot with multiple configuration files simultaneously, you can specify them all:
   ```sh
-  grid_trading_bot --config config/config1.json config/config2.json config/config3.json
+  uv run python main.py --config config/config1.json config/config2.json config/config3.json
   ```
 
 ### Saving Performance Results:
 To save the performance results to a file, use the **--save_performance_results** option:
   ```sh
-  grid_trading_bot --config config/config.json --save_performance_results results.json
+  uv run python main.py --config config/config.json --save_performance_results results.json
   ```
 
 ### Disabling Plots:
 To run the bot without displaying the end-of-simulation plots, use the **--no-plot** flag:
   ```sh
-  grid_trading_bot --config config/config.json --no-plot
+  uv run python main.py --config config/config.json --no-plot
   ```
 
 ### Combining Options:
 You can combine multiple options to customize how the bot runs. For example:
   ```sh
-  grid_trading_bot --config config/config1.json config/config2.json --save_performance_results combined_results.json --no-plot
+  uv run python main.py --config config/config1.json config/config2.json --save_performance_results combined_results.json --no-plot
   ```
+
+### Available Command-Line Arguments:
+
+| **Argument**                  | **Type**   | **Required** | **Description**                                                                 |
+|-------------------------------|------------|--------------|---------------------------------------------------------------------------------|
+| `--config`                    | `str`      | ✅ Yes       | Path(s) to configuration file(s). Multiple files can be provided.              |
+| `--save_performance_results`  | `str`      | ❌ No        | Path to save simulation results (e.g., `results.json`).                        |
+| `--no-plot`                   | `flag`     | ❌ No        | Disable the display of plots at the end of the simulation.                     |
+| `--profile`                   | `flag`     | ❌ No        | Enable profiling to analyze performance metrics during execution.              |
+
 
 ## 📊 Docker Compose for Logs Management
 
