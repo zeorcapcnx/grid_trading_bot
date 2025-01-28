@@ -15,5 +15,5 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      labels:
+    labels:
         - "actions"
