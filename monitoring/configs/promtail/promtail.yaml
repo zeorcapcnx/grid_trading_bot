@@ -7,7 +7,9 @@ positions:
   filename: /tmp/positions.yaml
 
 clients:
-  - url: http://loki:3100/loki/api/v1/push
+  - url: "http://loki:3100/loki/api/v1/push"
+    batchsize: 1
+    batchwait: 1s
 
 scrape_configs:
   - job_name: bot_logs
@@ -17,47 +19,36 @@ scrape_configs:
         labels:
           job: grid_trading_bot
           __path__: /logs/**/*.log
-    pipeline_stages:
-      # Extract detailed info from filename
-      - regex:
-          source: filename
-          expression: 'bot_(?P<base>[A-Z]+)_(?P<quote>[A-Z]+)_(?P<mode>[A-Z]+)_strategy(?P<strategy>[A-Z_]+)_spacing(?P<spacing>[A-Z]+)_size(?P<size>\d+)_range(?P<range>\d+-\d+)_.*\.log'
-      - labels:
-          base_currency: '{{ .base }}'
-          quote_currency: '{{ .quote }}'
-          trading_mode: '{{ .mode }}'
-          strategy_type: '{{ .strategy }}'
-          spacing_type: '{{ .spacing }}'
-          grid_size: '{{ .size }}'
-          grid_range: '{{ .range }}'
-      
-      # Extract ticker price from log lines
-      - regex:
-          expression: '^(?P<timestamp>\S+ \S+),\d+ - (?P<service>\S+) - (?P<level>\S+) - Connected to WebSocket for (?P<trading_pair>\S+USDT) ticker current price: (?P<current_price>\d+\.\d+)'
-      - labels:
-          timestamp: '{{ .timestamp }}'
-          service: '{{ .service }}'
-          level: '{{ .level }}'
-          trading_pair: '{{ .trading_pair }}'
-          current_price: '{{ .current_price }}'
+    
+    relabel_configs:
+      - source_labels: [__path__]
+        regex: '.*/bot_(?P<base>[A-Z]+)_(?P<quote>[A-Z]+)_(?P<mode>[A-Z]+)_strategy(?P<strategy>[A-Z_]+)_spacing(?P<spacing>[A-Z]+)_size(?P<size>\d+)_range(?P<range>\d+-\d+)_.*\.log$'
+        target_label: filename
 
-      # Regex for other types of logs (non-WebSocket related)
+      - source_labels: [base]
+        target_label: base_currency
+      - source_labels: [quote]
+        target_label: quote_currency
+      - source_labels: [mode]
+        target_label: trading_mode
+      - source_labels: [strategy]
+        target_label: strategy_type
+      - source_labels: [spacing]
+        target_label: spacing_type
+      - source_labels: [size]
+        target_label: grid_size
+      - source_labels: [range]
+        target_label: grid_range
+    
+    pipeline_stages:
       - regex:
-          source: message
-          expression: '^(?P<timestamp>\S+ \S+),(?P<ms>\d+) - (?P<service>\S+) - (?P<level>\S+) - .+'
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<service>[A-Za-z0-9_]+) - (?P<level>[A-Z]+) - (?P<log_message>.*)$'
+      
       - labels:
-          timestamp: '{{ .timestamp }} {{ .ms }}'
           service: '{{ .service }}'
           level: '{{ .level }}'
-      
-      # Fallback regex to capture any other log lines that don't match the above patterns
-      - regex:
-          source: message
-          expression: '.+'
-      - labels:
-          default: 'true'
-      
-      # Output stage: Pass timestamp as the source
-      - output:
-          source: message
-          format: '{{ .timestamp }} - {{ .level }} - {{ .message }}'
+
+      # Convert timestamp to Loki format
+      - timestamp:
+          source: timestamp
+          format: "2006-01-02 15:04:05,000"
