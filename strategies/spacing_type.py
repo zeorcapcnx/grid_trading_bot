@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class SpacingType(Enum):
     ARITHMETIC = "arithmetic"
     GEOMETRIC = "geometric"
@@ -9,6 +10,7 @@ class SpacingType(Enum):
         try:
             return SpacingType(spacing_type_str)
         except ValueError:
+            available_spacings = ", ".join([spacing.value for spacing in SpacingType])
             raise ValueError(
-                f"Invalid spacing type: '{spacing_type_str}'. Available spacings are: {', '.join([spacing.value for spacing in SpacingType])}"
-            )
+                f"Invalid spacing type: '{spacing_type_str}'. Available spacings are: {available_spacings}",
+            ) from None

@@ -1,12 +1,15 @@
 class ConfigError(Exception):
     """Base class for all configuration-related errors."""
+
     pass
+
 
 class ConfigFileNotFoundError(ConfigError):
     def __init__(self, config_file, message="Configuration file not found"):
         self.config_file = config_file
         self.message = f"{message}: {config_file}"
         super().__init__(self.message)
+
 
 class ConfigValidationError(ConfigError):
     def __init__(self, missing_fields=None, invalid_fields=None, message="Configuration validation error"):
@@ -20,9 +23,10 @@ class ConfigValidationError(ConfigError):
         self.message = f"{message}: {', '.join(details)}"
         super().__init__(self.message)
 
+
 class ConfigParseError(ConfigError):
     def __init__(self, config_file, original_exception, message="Error parsing configuration file"):
         self.config_file = config_file
         self.original_exception = original_exception
-        self.message = f"{message} ({config_file}): {str(original_exception)}"
+        self.message = f"{message} ({config_file}): {original_exception!s}"
         super().__init__(self.message)

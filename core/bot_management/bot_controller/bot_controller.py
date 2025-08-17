@@ -1,8 +1,13 @@
-import logging, asyncio
+import asyncio
+import logging
+
 from tabulate import tabulate
+
 from core.bot_management.event_bus import EventBus, Events
 from core.bot_management.grid_trading_bot import GridTradingBot
+
 from .exceptions import CommandParsingError, StrategyControlError
+
 
 class BotController:
     """
@@ -10,9 +15,9 @@ class BotController:
     """
 
     def __init__(
-        self, 
-        bot: GridTradingBot, 
-        event_bus: EventBus
+        self,
+        bot: GridTradingBot,
+        event_bus: EventBus,
     ):
         """
         Initializes the BotController.
@@ -33,10 +38,12 @@ class BotController:
         """
         self.logger.info("Command listener started. Type 'quit' to exit.")
         loop = asyncio.get_event_loop()
-        
+
         while not self._stop_listening:
             try:
-                command = await loop.run_in_executor(None, input, "Enter command (quit, orders, balance, stop, restart, pause): ")
+                command = await loop.run_in_executor(
+                    None, input, "Enter command (quit, orders, balance, stop, restart, pause): ",
+                )
                 await self._handle_command(command.strip().lower())
 
             except CommandParsingError as e:
@@ -55,10 +62,10 @@ class BotController:
         if command == "quit":
             self.logger.info("Stop bot command received")
             self.event_bus.publish_sync(Events.STOP_BOT, "User requested shutdown")
-        
+
         elif command == "orders":
             await self._display_orders()
-        
+
         elif command == "balance":
             await self._display_balance()
 
@@ -68,10 +75,10 @@ class BotController:
         elif command == "restart":
             self.event_bus.publish_sync(Events.STOP_BOT, "User issued restart command")
             self.event_bus.publish_sync(Events.START_BOT, "User issued restart command")
-        
+
         elif command.startswith("pause"):
             await self._pause_bot(command)
-        
+
         else:
             raise CommandParsingError(f"Unknown command: {command}")
 
@@ -81,7 +88,7 @@ class BotController:
         """
         self._stop_listening = True
         self.logger.info("Command listener stopped.")
-    
+
     def _handle_stop_event(self, reason: str) -> None:
         """
         Handles the STOP_BOT event and stops the command listener.
@@ -98,7 +105,11 @@ class BotController:
         """
         self.logger.info("Display orders bot command received")
         formatted_orders = self.bot.strategy.get_formatted_orders()
-        orders_table = tabulate(formatted_orders, headers=["Order Side", "Type", "Status", "Price", "Quantity", "Timestamp", "Grid Level", "Slippage"], tablefmt="pipe")
+        orders_table = tabulate(
+            formatted_orders,
+            headers=["Order Side", "Type", "Status", "Price", "Quantity", "Timestamp", "Grid Level", "Slippage"],
+            tablefmt="pipe",
+        )
         self.logger.info("\nFormatted Orders:\n" + orders_table)
 
     async def _display_balance(self):
@@ -126,7 +137,7 @@ class BotController:
             await self.event_bus.publish(Events.START_BOT, "Resuming bot after pause")
 
         except ValueError:
-            raise CommandParsingError("Invalid pause duration. Please specify in seconds.")
-            
+            raise CommandParsingError("Invalid pause duration. Please specify in seconds.") from None
+
         except Exception as e:
-            raise StrategyControlError(f"Error during pause operation: {e}")
+            raise StrategyControlError(f"Error during pause operation: {e}") from e

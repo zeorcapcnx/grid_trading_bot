@@ -34,15 +34,12 @@ discussions = "https://github.com/jordantete/grid_trading_bot/discussions"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 log_cli = true
 log_cli_level = "INFO"
-timeout = 10
-timeout_method = "thread"
 markers = [
     "asyncio: mark a test as an async test",
     "timeout: mark a test with a timeout"
@@ -53,9 +50,46 @@ omit = [
     "*/interface*.py"
 ]
 
-[tool.black]
+[tool.ruff]
 line-length = 120
-skip-string-normalization = true
+target-version = "py312"
+src = ["core", "strategies", "config", "utils", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+    "S",    # flake8-bandit (security)
+    "T20",  # flake8-print
+    "SIM",  # flake8-simplify
+    "RUF",  # Ruff-specific rules
+    "PT",   # flake8-pytest-style
+    "Q",    # flake8-quotes
+    "A",    # flake8-builtins
+    "COM",  # flake8-commas
+    "DTZ",  # flake8-datetimez
+    "TCH",  # flake8-type-checking
+]
+ignore = [
+    "S101",   # assert used (OK in tests)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "strategies", "config", "utils"]
+force-sort-within-sections = true
 
 [build-system]
 requires = ["setuptools>=42", "wheel"]

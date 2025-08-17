@@ -1,7 +1,10 @@
-import asyncio, logging
+import asyncio
+import logging
+
 from core.bot_management.event_bus import EventBus, Events
-from core.order_handling.order_book import OrderBook
 from core.order_handling.order import Order, OrderStatus
+from core.order_handling.order_book import OrderBook
+
 
 class OrderStatusTracker:
     """
@@ -56,7 +59,7 @@ class OrderStatusTracker:
         open_orders = self.order_book.get_open_orders()
         tasks = [self._create_task(self._query_and_handle_order(order)) for order in open_orders]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         for result in results:
             if isinstance(result, Exception):
                 self.logger.error(f"Error during order processing: {result}", exc_info=True)
@@ -70,7 +73,10 @@ class OrderStatusTracker:
             self._handle_order_status_change(remote_order)
 
         except Exception as error:
-            self.logger.error(f"Failed to query remote order with identifier {local_order.identifier}: {error}", exc_info=True)
+            self.logger.error(
+                f"Failed to query remote order with identifier {local_order.identifier}: {error}",
+                exc_info=True,
+            )
 
     def _handle_order_status_change(
         self,
@@ -81,7 +87,7 @@ class OrderStatusTracker:
 
         Args:
             remote_order: The latest `Order` object fetched from the exchange.
-        
+
         Raises:
             ValueError: If critical fields (e.g., status) are missing from the remote order.
         """
@@ -99,11 +105,16 @@ class OrderStatusTracker:
                 self.logger.warning(f"Order {remote_order.identifier} was canceled.")
             elif remote_order.status == OrderStatus.OPEN:  # Still open
                 if remote_order.filled > 0:
-                    self.logger.info(f"Order {remote_order} partially filled. Filled: {remote_order.filled}, Remaining: {remote_order.remaining}.")
+                    self.logger.info(
+                        f"Order {remote_order} partially filled. Filled: {remote_order.filled}, "
+                        f"Remaining: {remote_order.remaining}.",
+                    )
                 else:
                     self.logger.info(f"Order {remote_order} is still open. No fills yet.")
             else:
-                self.logger.warning(f"Unhandled order status '{remote_order.status}' for order {remote_order.identifier}.")
+                self.logger.warning(
+                    f"Unhandled order status '{remote_order.status}' for order {remote_order.identifier}.",
+                )
 
         except Exception as e:
             self.logger.error(f"Error handling order status change: {e}", exc_info=True)

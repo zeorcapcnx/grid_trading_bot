@@ -24,7 +24,9 @@ coverage.xml
 *.prof
 
 # VS Code
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 
 # Secrets
 secrets.json

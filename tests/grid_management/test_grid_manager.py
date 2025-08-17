@@ -1,12 +1,15 @@
-import pytest
-import numpy as np
 from unittest.mock import Mock
+
+import numpy as np
+import pytest
+
 from config.config_manager import ConfigManager
+from core.grid_management.grid_level import GridCycleState, GridLevel
 from core.grid_management.grid_manager import GridManager
-from core.grid_management.grid_level import GridLevel, GridCycleState
 from core.order_handling.order import Order, OrderSide
 from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
+
 
 class TestGridManager:
     @pytest.fixture
@@ -62,7 +65,10 @@ class TestGridManager:
         current_fiat_balance = 5000  # Half of the total balance
         current_crypto_balance = 0.5
         current_price = 2000
-        expected_quantity = ((current_fiat_balance + (current_crypto_balance * current_price)) / 2 - (current_crypto_balance * current_price)) / current_price
+        expected_quantity = (
+            (current_fiat_balance + (current_crypto_balance * current_price)) / 2
+            - (current_crypto_balance * current_price)
+        ) / current_price
         result = grid_manager.get_initial_order_quantity(current_fiat_balance, current_crypto_balance, current_price)
         assert result == expected_quantity
 
@@ -86,7 +92,7 @@ class TestGridManager:
         paired_sell_level = grid_manager.get_paired_sell_level(buy_grid_level)
         assert paired_sell_level.price > buy_grid_level.price
         assert paired_sell_level.state == GridCycleState.READY_TO_SELL
-    
+
     def test_get_paired_sell_level_hedged_grid(self, config_manager):
         grid_manager = GridManager(config_manager, StrategyType.HEDGED_GRID)
         grid_manager.initialize_grids_and_levels()
@@ -112,7 +118,7 @@ class TestGridManager:
         grid_manager.mark_order_pending(grid_level, order)
         assert grid_level.state == GridCycleState.WAITING_FOR_BUY_FILL
         assert order in grid_level.orders
-    
+
     def test_mark_order_pending_after_sell(self, grid_manager):
         grid_manager.initialize_grids_and_levels()
         grid_level = grid_manager.grid_levels[grid_manager.sorted_sell_grids[0]]
@@ -137,7 +143,7 @@ class TestGridManager:
         grid_level = grid_manager.grid_levels[grid_manager.sorted_buy_grids[0]]
         grid_manager.complete_order(grid_level, OrderSide.BUY)
         assert grid_level.state == GridCycleState.READY_TO_BUY_OR_SELL
-    
+
     def test_complete_order_simple_grid_buy(self, grid_manager):
         grid_manager.initialize_grids_and_levels()
         grid_level = grid_manager.grid_levels[grid_manager.sorted_buy_grids[0]]
@@ -154,7 +160,7 @@ class TestGridManager:
         grid_manager.complete_order(grid_level, OrderSide.SELL)
 
         assert grid_level.state == GridCycleState.READY_TO_BUY
-    
+
     def test_complete_order_hedged_grid_buy(self, config_manager):
         grid_manager = GridManager(config_manager, StrategyType.HEDGED_GRID)
         grid_manager.initialize_grids_and_levels()
@@ -217,9 +223,16 @@ class TestGridManager:
         grid_manager = GridManager(config_manager, StrategyType.HEDGED_GRID)
 
         expected_grids = [
-            1000, 1080.059738892306, 1166.5290395761165, 1259.921049894873, 
-            1360.7900001743767, 1469.7344922755985, 1587.401051968199, 
-            1714.4879657061451, 1851.7494245745802, 2000
+            1000,
+            1080.059738892306,
+            1166.5290395761165,
+            1259.921049894873,
+            1360.7900001743767,
+            1469.7344922755985,
+            1587.401051968199,
+            1714.4879657061451,
+            1851.7494245745802,
+            2000,
         ]
         grids, central_price = grid_manager._calculate_price_grids_and_central_price()
         np.testing.assert_array_almost_equal(grids, expected_grids, decimal=5)

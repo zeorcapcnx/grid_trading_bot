@@ -1,6 +1,9 @@
-import pytest
 from unittest.mock import Mock
+
+import pytest
+
 from core.order_handling.fee_calculator import FeeCalculator
+
 
 class TestFeeCalculator:
     @pytest.fixture

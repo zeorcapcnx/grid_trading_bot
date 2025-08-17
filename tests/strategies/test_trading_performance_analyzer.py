@@ -1,10 +1,13 @@
-import pytest, logging
-from pytest import approx
+import logging
 from unittest.mock import Mock
+
 import pandas as pd
-from core.order_handling.order import Order, OrderType, OrderSide, OrderStatus
+import pytest
+
 from core.grid_management.grid_level import GridLevel
+from core.order_handling.order import Order, OrderSide, OrderStatus, OrderType
 from strategies.trading_performance_analyzer import TradingPerformanceAnalyzer
+
 
 class TestPerformanceAnalyzer:
     @pytest.fixture
@@ -20,17 +23,20 @@ class TestPerformanceAnalyzer:
 
     @pytest.fixture
     def mock_account_data(self):
-        data = pd.DataFrame({
-            "close": [100, 105, 110, 90, 95],
-            "account_value": [10000, 10250, 10500, 9500, 9800]
-        }, index=pd.to_datetime(['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']))
+        data = pd.DataFrame(
+            {
+                "close": [100, 105, 110, 90, 95],
+                "account_value": [10000, 10250, 10500, 9500, 9800],
+            },
+            index=pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]),
+        )
         return data
 
     def test_calculate_roi(self, setup_performance_analyzer):
         analyzer, _, _ = setup_performance_analyzer
         roi = analyzer._calculate_roi(10000, 11000)
         assert roi == 10.0  # Expected 10% ROI given a 10000 initial balance
-    
+
     def test_calculate_roi_zero_balance(self, setup_performance_analyzer):
         analyzer, _, _ = setup_performance_analyzer
         roi = analyzer._calculate_roi(10000, 10000)
@@ -39,7 +45,7 @@ class TestPerformanceAnalyzer:
     def test_calculate_drawdown(self, setup_performance_analyzer, mock_account_data):
         analyzer, _, _ = setup_performance_analyzer
         max_drawdown = analyzer._calculate_drawdown(mock_account_data)
-        assert max_drawdown == approx(9.52, rel=1e-3)
+        assert max_drawdown == pytest.approx(9.52, rel=1e-3)
 
     def test_calculate_runup(self, setup_performance_analyzer, mock_account_data):
         analyzer, _, _ = setup_performance_analyzer
@@ -80,7 +86,10 @@ class TestPerformanceAnalyzer:
 
     def test_calculate_sharpe_ratio_no_volatility(self, setup_performance_analyzer):
         analyzer, _, _ = setup_performance_analyzer
-        data = pd.DataFrame({"account_value": [10000, 10000, 10000]}, index=pd.to_datetime(['2024-01-01', '2024-01-02', '2024-01-03']))
+        data = pd.DataFrame(
+            {"account_value": [10000, 10000, 10000]},
+            index=pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
+        )
         sharpe_ratio = analyzer._calculate_sharpe_ratio(data)
         assert sharpe_ratio == 0.0  # Expected Sharpe ratio to be 0 when there is no volatility
 
@@ -142,7 +151,7 @@ class TestPerformanceAnalyzer:
             1200.0,
             "-0.42%",
         ]
-    
+
     def test_get_formatted_orders_empty(self, setup_performance_analyzer):
         analyzer, _, order_book = setup_performance_analyzer
         order_book.get_buy_orders_with_grid.return_value = []
@@ -153,9 +162,9 @@ class TestPerformanceAnalyzer:
 
     def test_generate_performance_summary(self, setup_performance_analyzer, mock_account_data, caplog):
         analyzer, config_manager, order_book = setup_performance_analyzer
-        
+
         initial_balance = mock_account_data["account_value"].iloc[0]
-        initial_price = mock_account_data['close'].iloc[0]
+        initial_price = mock_account_data["close"].iloc[0]
         final_fiat_balance = 10500
         final_crypto_balance = 0.5
         final_crypto_price = 20000
@@ -203,23 +212,38 @@ class TestPerformanceAnalyzer:
             performance_summary, formatted_orders = analyzer.generate_performance_summary(
                 mock_account_data,
                 initial_price,
-                final_fiat_balance, 
-                final_crypto_balance, 
-                final_crypto_price, 
-                total_fees
+                final_fiat_balance,
+                final_crypto_balance,
+                final_crypto_price,
+                total_fees,
             )
 
         # Assertions for performance summary
-        assert performance_summary["Pair"] == f"{config_manager.get_base_currency()}/{config_manager.get_quote_currency()}"
+        assert (
+            performance_summary["Pair"] == f"{config_manager.get_base_currency()}/{config_manager.get_quote_currency()}"
+        )
         assert performance_summary["Start Date"] == mock_account_data.index[0]
         assert performance_summary["End Date"] == mock_account_data.index[-1]
         assert performance_summary["Duration"] == mock_account_data.index[-1] - mock_account_data.index[0]
-        assert performance_summary["ROI"] == f"{analyzer._calculate_roi(initial_balance, final_fiat_balance + final_crypto_balance * final_crypto_price):.2f}%"
+        expected_roi = analyzer._calculate_roi(
+            initial_balance,
+            final_fiat_balance + final_crypto_balance * final_crypto_price,
+        )
+        assert performance_summary["ROI"] == f"{expected_roi:.2f}%"
         assert performance_summary["Grid Trading Gains"] == "197.50"  # Adjusted for mocked fees
         assert performance_summary["Total Fees"] == f"{total_fees:.2f}"
-        assert performance_summary["Final Balance (Fiat)"] == f"{final_fiat_balance + final_crypto_balance * final_crypto_price:.2f}"
-        assert performance_summary["Final Crypto Balance"] == f"{final_crypto_balance:.4f} {config_manager.get_base_currency()}"
-        assert performance_summary["Remaining Fiat Balance"] == f"{final_fiat_balance:.2f} {config_manager.get_quote_currency()}"
+        assert (
+            performance_summary["Final Balance (Fiat)"]
+            == f"{final_fiat_balance + final_crypto_balance * final_crypto_price:.2f}"
+        )
+        assert (
+            performance_summary["Final Crypto Balance"]
+            == f"{final_crypto_balance:.4f} {config_manager.get_base_currency()}"
+        )
+        assert (
+            performance_summary["Remaining Fiat Balance"]
+            == f"{final_fiat_balance:.2f} {config_manager.get_quote_currency()}"
+        )
         assert performance_summary["Number of Buy Trades"] == 1
         assert performance_summary["Number of Sell Trades"] == 1
         assert "Sharpe Ratio" in performance_summary
@@ -260,7 +284,10 @@ class TestPerformanceAnalyzer:
 
     def test_calculate_sortino_ratio_no_downside(self, setup_performance_analyzer):
         analyzer, _, _ = setup_performance_analyzer
-        data = pd.DataFrame({"account_value": [10000, 10050, 10100]}, index=pd.to_datetime(['2024-01-01', '2024-01-02', '2024-01-03']))
+        data = pd.DataFrame(
+            {"account_value": [10000, 10050, 10100]},
+            index=pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
+        )
         sortino_ratio = analyzer._calculate_sortino_ratio(data)
         assert sortino_ratio > 0  # Expected positive Sortino ratio with no downside volatility
 
@@ -275,7 +302,7 @@ class TestPerformanceAnalyzer:
 
     def test_calculate_buy_and_hold_return(self, setup_performance_analyzer, mock_account_data):
         analyzer, _, _ = setup_performance_analyzer
-        initial_price = mock_account_data['close'].iloc[0]
+        initial_price = mock_account_data["close"].iloc[0]
         final_price = 200
         buy_and_hold_return = analyzer._calculate_buy_and_hold_return(mock_account_data, initial_price, final_price)
         expected_return = ((final_price - initial_price) / initial_price) * 100

@@ -1,16 +1,19 @@
 import logging
+
 from config.trading_mode import TradingMode
+from core.bot_management.event_bus import EventBus, Events
+from core.services.exchange_interface import ExchangeInterface
+
+from ..validation.exceptions import InsufficientBalanceError, InsufficientCryptoBalanceError
 from .fee_calculator import FeeCalculator
 from .order import Order, OrderSide, OrderStatus
-from core.bot_management.event_bus import EventBus, Events
-from ..validation.exceptions import InsufficientBalanceError, InsufficientCryptoBalanceError
-from core.services.exchange_interface import ExchangeInterface
+
 
 class BalanceTracker:
     def __init__(
-        self, 
+        self,
         event_bus: EventBus,
-        fee_calculator: FeeCalculator, 
+        fee_calculator: FeeCalculator,
         trading_mode: TradingMode,
         base_currency: str,
         quote_currency: str,
@@ -39,12 +42,12 @@ class BalanceTracker:
         self.reserved_crypto: float = 0.0
 
         self.event_bus.subscribe(Events.ORDER_FILLED, self._update_balance_on_order_completion)
-    
+
     async def setup_balances(
-        self, 
-        initial_balance: float, 
-        initial_crypto_balance: float, 
-        exchange_service=ExchangeInterface
+        self,
+        initial_balance: float,
+        initial_crypto_balance: float,
+        exchange_service=ExchangeInterface,
     ):
         """
         Sets up the balances based on trading mode.
@@ -64,9 +67,9 @@ class BalanceTracker:
             self.balance, self.crypto_balance = await self._fetch_live_balances(exchange_service)
 
     async def _fetch_live_balances(
-        self, 
-        exchange_service: ExchangeInterface
-    )-> tuple[float, float]:
+        self,
+        exchange_service: ExchangeInterface,
+    ) -> tuple[float, float]:
         """
         Fetches live balances from the exchange asynchronously.
 
@@ -78,24 +81,27 @@ class BalanceTracker:
         """
         balances = await exchange_service.get_balance()
 
-        if not balances or 'free' not in balances:
+        if not balances or "free" not in balances:
             raise ValueError(f"Unexpected balance structure: {balances}")
 
-        quote_balance = float(balances.get('free', {}).get(self.quote_currency, 0.0))
-        base_balance = float(balances.get('free', {}).get(self.base_currency, 0.0))
-        self.logger.info(f"Fetched balances - Quote: {self.quote_currency}: {quote_balance}, Base: {self.base_currency}: {base_balance}")
+        quote_balance = float(balances.get("free", {}).get(self.quote_currency, 0.0))
+        base_balance = float(balances.get("free", {}).get(self.base_currency, 0.0))
+        self.logger.info(
+            f"Fetched balances - Quote: {self.quote_currency}: {quote_balance}, "
+            f"Base: {self.base_currency}: {base_balance}",
+        )
         return quote_balance, base_balance
 
     async def _update_balance_on_order_completion(self, order: Order) -> None:
         """
         Updates the account balance and crypto balance when an order is filled.
 
-        This method is called when an `ORDER_FILLED` event is received. It determines 
-        whether the filled order is a buy or sell order and updates the balances 
+        This method is called when an `ORDER_FILLED` event is received. It determines
+        whether the filled order is a buy or sell order and updates the balances
         accordingly.
 
         Args:
-            order: The filled `Order` object containing details such as the side 
+            order: The filled `Order` object containing details such as the side
                 (BUY/SELL), filled quantity, and price.
         """
         if order.side == OrderSide.BUY:
@@ -104,9 +110,9 @@ class BalanceTracker:
             self._update_after_sell_order_filled(order.filled, order.price)
 
     def _update_after_buy_order_filled(
-        self, 
-        quantity: float, 
-        price: float
+        self,
+        quantity: float,
+        price: float,
     ) -> None:
         """
         Updates the balances after a buy order is completed, including handling reserved funds.
@@ -126,15 +132,15 @@ class BalanceTracker:
         if self.reserved_fiat < 0:
             self.balance += self.reserved_fiat  # Adjust with excess reserved fiat
             self.reserved_fiat = 0
-    
+
         self.crypto_balance += quantity
         self.total_fees += fee
         self.logger.info(f"Buy order completed: {quantity} crypto purchased at {price}.")
 
     def _update_after_sell_order_filled(
-        self, 
-        quantity: float, 
-        price: float
+        self,
+        quantity: float,
+        price: float,
     ) -> None:
         """
         Updates the balances after a sell order is completed, including handling reserved funds.
@@ -158,7 +164,7 @@ class BalanceTracker:
         self.balance += sale_proceeds
         self.total_fees += fee
         self.logger.info(f"Sell order completed: {quantity} crypto sold at {price}.")
-    
+
     def update_after_initial_purchase(self, initial_order: Order):
         """
         Updates balances after an initial crypto purchase.
@@ -168,18 +174,21 @@ class BalanceTracker:
         """
         if initial_order.status != OrderStatus.CLOSED:
             raise ValueError(f"Order {initial_order.id} is not CLOSED. Cannot update balances.")
-    
+
         total_cost = initial_order.filled * initial_order.average
         fee = self.fee_calculator.calculate_fee(initial_order.amount * initial_order.average)
-        
+
         self.crypto_balance += initial_order.filled
         self.balance -= total_cost + fee
         self.total_fees += fee
-        self.logger.info(f"Updated balances. Crypto balance: {self.crypto_balance}, Fiat balance: {self.balance}, Total fees: {self.total_fees}")
+        self.logger.info(
+            f"Updated balances. Crypto balance: {self.crypto_balance}, "
+            f"Fiat balance: {self.balance}, Total fees: {self.total_fees}",
+        )
 
     def reserve_funds_for_buy(
-        self, 
-        amount: float
+        self,
+        amount: float,
     ) -> None:
         """
         Reserves fiat for a pending buy order.
@@ -195,8 +204,8 @@ class BalanceTracker:
         self.logger.info(f"Reserved {amount} fiat for a buy order. Remaining fiat balance: {self.balance}.")
 
     def reserve_funds_for_sell(
-        self, 
-        quantity: float
+        self,
+        quantity: float,
     ) -> None:
         """
         Reserves crypto for a pending sell order.
@@ -209,7 +218,9 @@ class BalanceTracker:
 
         self.reserved_crypto += quantity
         self.crypto_balance -= quantity
-        self.logger.info(f"Reserved {quantity} crypto for a sell order. Remaining crypto balance: {self.crypto_balance}.")
+        self.logger.info(
+            f"Reserved {quantity} crypto for a sell order. Remaining crypto balance: {self.crypto_balance}.",
+        )
 
     def get_adjusted_fiat_balance(self) -> float:
         """

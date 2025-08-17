@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import Mock
-from core.grid_management.grid_level import GridLevel, GridCycleState
+
+import pytest
+
+from core.grid_management.grid_level import GridCycleState, GridLevel
 from core.order_handling.order import Order
 
 
@@ -11,7 +13,7 @@ class TestGridLevel:
 
     def test_grid_level_initialization(self):
         grid_level = GridLevel(price=1000, state=GridCycleState.READY_TO_BUY)
-        
+
         assert grid_level.price == 1000
         assert grid_level.state == GridCycleState.READY_TO_BUY
         assert grid_level.orders == []
@@ -21,7 +23,7 @@ class TestGridLevel:
     def test_add_order(self, grid_level):
         mock_order = Mock(spec=Order)
         grid_level.add_order(mock_order)
-        
+
         assert len(grid_level.orders) == 1
         assert grid_level.orders[0] == mock_order
 

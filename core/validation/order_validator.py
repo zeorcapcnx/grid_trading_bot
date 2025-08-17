@@ -1,5 +1,6 @@
 from .exceptions import InsufficientBalanceError, InsufficientCryptoBalanceError, InvalidOrderQuantityError
 
+
 class OrderValidator:
     def __init__(self, tolerance: float = 1e-6, threshold_ratio: float = 0.5):
         """
@@ -31,13 +32,18 @@ class OrderValidator:
         total_cost = order_quantity * price
 
         if balance < total_cost * self.threshold_ratio:
-            raise InsufficientBalanceError(f"Balance {balance:.2f} is far below the required cost {total_cost:.2f} (threshold ratio: {self.threshold_ratio}).")
+            raise InsufficientBalanceError(
+                f"Balance {balance:.2f} is far below the required cost {total_cost:.2f} "
+                f"(threshold ratio: {self.threshold_ratio}).",
+            )
 
         if total_cost > balance:
             adjusted_quantity = max((balance - self.tolerance) / price, 0)
 
             if adjusted_quantity <= 0 or (adjusted_quantity * price) < self.tolerance:
-                raise InsufficientBalanceError(f"Insufficient balance: {balance:.2f} to place any buy order at price {price:.2f}.")
+                raise InsufficientBalanceError(
+                    f"Insufficient balance: {balance:.2f} to place any buy order at price {price:.2f}.",
+                )
         else:
             adjusted_quantity = order_quantity
 
@@ -62,7 +68,7 @@ class OrderValidator:
         if crypto_balance < order_quantity * self.threshold_ratio:
             raise InsufficientCryptoBalanceError(
                 f"Crypto balance {crypto_balance:.6f} is far below the required quantity {order_quantity:.6f} "
-                f"(threshold ratio: {self.threshold_ratio})."
+                f"(threshold ratio: {self.threshold_ratio}).",
             )
 
         adjusted_quantity = min(order_quantity, crypto_balance - self.tolerance)

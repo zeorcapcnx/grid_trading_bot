@@ -1,9 +1,12 @@
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
-from core.order_handling.execution_strategy.live_order_execution_strategy import LiveOrderExecutionStrategy
-from core.order_handling.order import Order, OrderType, OrderSide, OrderStatus
-from core.services.exceptions import DataFetchError
+
+import pytest
+
 from core.order_handling.exceptions import OrderExecutionFailedError
+from core.order_handling.execution_strategy.live_order_execution_strategy import LiveOrderExecutionStrategy
+from core.order_handling.order import OrderSide, OrderStatus, OrderType
+from core.services.exceptions import DataFetchError
+
 
 @pytest.mark.asyncio
 class TestLiveOrderExecutionStrategy:
@@ -144,10 +147,12 @@ class TestLiveOrderExecutionStrategy:
         order_id = "test-order-id"
         pair = "BTC/USDT"
 
-        exchange_service.cancel_order = AsyncMock(side_effect=[
-            {"status": "failed"},
-            {"status": "canceled"},
-        ])
+        exchange_service.cancel_order = AsyncMock(
+            side_effect=[
+                {"status": "failed"},
+                {"status": "canceled"},
+            ],
+        )
 
         result = await strategy._retry_cancel_order(order_id, pair)
 

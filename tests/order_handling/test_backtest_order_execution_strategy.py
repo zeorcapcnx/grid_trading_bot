@@ -1,7 +1,10 @@
-import pytest
 from unittest.mock import patch
-from core.order_handling.order import OrderSide, OrderType, OrderStatus
+
+import pytest
+
 from core.order_handling.execution_strategy.backtest_order_execution_strategy import BacktestOrderExecutionStrategy
+from core.order_handling.order import OrderSide, OrderStatus, OrderType
+
 
 @pytest.mark.asyncio
 class TestBacktestOrderExecutionStrategy:

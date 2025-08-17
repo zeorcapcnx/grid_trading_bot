@@ -1,10 +1,13 @@
-import pytest
 from unittest.mock import Mock, patch
-from core.services.exchange_service_factory import ExchangeServiceFactory
-from core.services.live_exchange_service import LiveExchangeService
-from core.services.backtest_exchange_service import BacktestExchangeService
+
+import pytest
+
 from config.config_manager import ConfigManager
 from config.trading_mode import TradingMode
+from core.services.backtest_exchange_service import BacktestExchangeService
+from core.services.exchange_service_factory import ExchangeServiceFactory
+from core.services.live_exchange_service import LiveExchangeService
+
 
 class TestExchangeServiceFactory:
     @pytest.fixture
@@ -13,7 +16,7 @@ class TestExchangeServiceFactory:
         config_manager.get_trading_mode.return_value = TradingMode.LIVE
         config_manager.get_exchange_name.return_value = "binance"
         return config_manager
-    
+
     @patch("core.services.live_exchange_service.ccxtpro")
     @patch("core.services.live_exchange_service.getattr")
     def test_create_live_exchange_service_with_env_vars(self, mock_getattr, mock_ccxtpro, config_manager, monkeypatch):
@@ -28,15 +31,17 @@ class TestExchangeServiceFactory:
 
         assert isinstance(service, LiveExchangeService), "Expected a LiveExchangeService instance"
         mock_getattr.assert_called_once_with(mock_ccxtpro, "binance")
-        mock_ccxtpro.binance.assert_called_once_with({
-            'apiKey': "test_api_key",
-            'secret': "test_secret_key",
-            'enableRateLimit': True
-        })
+        mock_ccxtpro.binance.assert_called_once_with(
+            {
+                "apiKey": "test_api_key",
+                "secret": "test_secret_key",
+                "enableRateLimit": True,
+            },
+        )
 
-    @patch("core.services.live_exchange_service.ccxt")
+    @patch("core.services.live_exchange_service.ccxtpro")
     @patch("core.services.live_exchange_service.getattr")
-    def test_create_backtest_exchange_service(self, mock_getattr, mock_ccxt, config_manager):
+    def test_create_backtest_exchange_service(self, mock_getattr, mock_ccxtpro, config_manager):
         config_manager.get_trading_mode.return_value = TradingMode.BACKTEST
         service = ExchangeServiceFactory.create_exchange_service(config_manager, TradingMode.BACKTEST)
         assert isinstance(service, BacktestExchangeService), "Expected a BacktestExchangeService instance"

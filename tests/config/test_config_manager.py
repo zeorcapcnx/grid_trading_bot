@@ -1,11 +1,15 @@
-import pytest, json
-from unittest.mock import patch, mock_open, Mock
+import json
+from unittest.mock import Mock, mock_open, patch
+
+import pytest
+
 from config.config_manager import ConfigManager
 from config.config_validator import ConfigValidator
+from config.exceptions import ConfigFileNotFoundError, ConfigParseError
+from config.trading_mode import TradingMode
 from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
-from config.trading_mode import TradingMode
-from config.exceptions import ConfigFileNotFoundError, ConfigParseError
+
 
 class TestConfigManager:
     @pytest.fixture
@@ -24,16 +28,18 @@ class TestConfigManager:
         assert config_manager.config == valid_config
 
     def test_load_config_file_not_found(self, mock_validator):
-        with patch("os.path.exists", return_value=False):
-            with pytest.raises(ConfigFileNotFoundError):
-                ConfigManager("config.json", mock_validator)
+        with patch("os.path.exists", return_value=False), pytest.raises(ConfigFileNotFoundError):
+            ConfigManager("config.json", mock_validator)
 
     def test_load_config_json_decode_error(self, mock_validator):
         invalid_json = '{"invalid_json": '  # Malformed JSON
         mocked_open = mock_open(read_data=invalid_json)
-        with patch("builtins.open", mocked_open), patch("os.path.exists", return_value=True):
-            with pytest.raises(ConfigParseError):
-                ConfigManager("config.json", mock_validator)
+        with (
+            patch("builtins.open", mocked_open),
+            patch("os.path.exists", return_value=True),
+            pytest.raises(ConfigParseError),
+        ):
+            ConfigManager("config.json", mock_validator)
 
     def test_get_exchange_name(self, config_manager):
         assert config_manager.get_exchange_name() == "binance"
@@ -49,7 +55,7 @@ class TestConfigManager:
 
     def test_get_initial_balance(self, config_manager):
         assert config_manager.get_initial_balance() == 10000
-    
+
     def test_get_spacing_type(self, config_manager):
         assert config_manager.get_spacing_type() == SpacingType.GEOMETRIC
 
@@ -65,13 +71,13 @@ class TestConfigManager:
     def test_get_period(self, config_manager):
         expected_period = {
             "start_date": "2024-07-04T00:00:00Z",
-            "end_date": "2024-07-11T00:00:00Z"
+            "end_date": "2024-07-11T00:00:00Z",
         }
         assert config_manager.get_period() == expected_period
-    
+
     def test_get_start_date(self, config_manager):
         assert config_manager.get_start_date() == "2024-07-04T00:00:00Z"
-    
+
     def test_get_end_date(self, config_manager):
         assert config_manager.get_end_date() == "2024-07-11T00:00:00Z"
 
@@ -81,18 +87,18 @@ class TestConfigManager:
     def test_get_grid_range(self, config_manager):
         expected_range = {
             "top": 3100,
-            "bottom": 2850
+            "bottom": 2850,
         }
         assert config_manager.get_grid_range() == expected_range
-    
+
     def test_get_top_range(self, config_manager):
         assert config_manager.get_top_range() == 3100
-    
+
     def test_get_bottom_range(self, config_manager):
         assert config_manager.get_bottom_range() == 2850
 
     def test_is_take_profit_enabled(self, config_manager):
-        assert config_manager.is_take_profit_enabled() == False
+        assert not config_manager.is_take_profit_enabled()
 
     def test_get_take_profit_threshold(self, config_manager):
         assert config_manager.get_take_profit_threshold() == 3700
@@ -101,32 +107,41 @@ class TestConfigManager:
         assert config_manager.get_stop_loss_threshold() == 2830
 
     def test_is_stop_loss_enabled(self, config_manager):
-        assert config_manager.is_stop_loss_enabled() == False
+        assert not config_manager.is_stop_loss_enabled()
 
     def test_get_log_level(self, config_manager):
         assert config_manager.get_logging_level() == "INFO"
 
     def test_should_log_to_file_true(self, config_manager):
         assert config_manager.should_log_to_file() is True
-    
+
     def test_get_trading_mode_invalid_value(self, config_manager):
         config_manager.config["exchange"]["trading_mode"] = "invalid_mode"
-        
-        with pytest.raises(ValueError, match="Invalid trading mode: 'invalid_mode'. Available modes are: backtest, paper_trading, live"):
+
+        with pytest.raises(
+            ValueError,
+            match="Invalid trading mode: 'invalid_mode'. Available modes are: backtest, paper_trading, live",
+        ):
             config_manager.get_trading_mode()
 
     def test_get_spacing_type_invalid_value(self, config_manager):
         config_manager.config["grid_strategy"]["spacing"] = "invalid_spacing"
-        
-        with pytest.raises(ValueError, match="Invalid spacing type: 'invalid_spacing'. Available spacings are: arithmetic, geometric"):
+
+        with pytest.raises(
+            ValueError,
+            match="Invalid spacing type: 'invalid_spacing'. Available spacings are: arithmetic, geometric",
+        ):
             config_manager.get_spacing_type()
-        
+
     def test_get_strategy_type_invalid_value(self, config_manager):
         config_manager.config["grid_strategy"]["type"] = "invalid_strategy"
-        
-        with pytest.raises(ValueError, match="Invalid strategy type: 'invalid_strategy'. Available strategies are: simple_grid, hedged_grid"):
+
+        with pytest.raises(
+            ValueError,
+            match="Invalid strategy type: 'invalid_strategy'. Available strategies are: simple_grid, hedged_grid",
+        ):
             config_manager.get_strategy_type()
-    
+
     def test_get_timeframe_default(self, config_manager):
         del config_manager.config["trading_settings"]["timeframe"]
         assert config_manager.get_timeframe() == "1h"
@@ -134,7 +149,7 @@ class TestConfigManager:
     def test_get_historical_data_file_default(self, config_manager):
         del config_manager.config["trading_settings"]["historical_data_file"]
         assert config_manager.get_historical_data_file() is None
-    
+
     def test_is_take_profit_enabled_default(self, config_manager):
         del config_manager.config["risk_management"]["take_profit"]
         assert config_manager.is_take_profit_enabled() is False

@@ -1,19 +1,25 @@
-import cProfile, asyncio, os, logging
-from typing import Optional, Dict, Any
+import asyncio
+import cProfile
+import logging
+import os
+from typing import Any
+
 from dotenv import load_dotenv
-from utils.arg_parser import parse_and_validate_console_args
-from utils.performance_results_saver import save_or_append_performance_results
-from core.bot_management.bot_controller.bot_controller import BotController
-from core.bot_management.event_bus import EventBus
-from config.trading_mode import TradingMode
-from core.bot_management.notification.notification_handler import NotificationHandler
-from core.bot_management.grid_trading_bot import GridTradingBot
-from core.bot_management.health_check import HealthCheck
+
 from config.config_manager import ConfigManager
 from config.config_validator import ConfigValidator
 from config.exceptions import ConfigError
-from utils.logging_config import setup_logging
+from config.trading_mode import TradingMode
+from core.bot_management.bot_controller.bot_controller import BotController
+from core.bot_management.event_bus import EventBus
+from core.bot_management.grid_trading_bot import GridTradingBot
+from core.bot_management.health_check import HealthCheck
+from core.bot_management.notification.notification_handler import NotificationHandler
+from utils.arg_parser import parse_and_validate_console_args
 from utils.config_name_generator import generate_config_name
+from utils.logging_config import setup_logging
+from utils.performance_results_saver import save_or_append_performance_results
+
 
 def initialize_config(config_path: str) -> ConfigManager:
     load_dotenv()
@@ -24,26 +30,30 @@ def initialize_config(config_path: str) -> ConfigManager:
         logging.error(f"An error occured during the initialization of ConfigManager {e}")
         exit(1)
 
+
 def initialize_notification_handler(config_manager: ConfigManager, event_bus: EventBus) -> NotificationHandler:
     notification_urls = os.getenv("APPRISE_NOTIFICATION_URLS", "").split(",")
     trading_mode = config_manager.get_trading_mode()
     return NotificationHandler(event_bus, notification_urls, trading_mode)
 
+
 async def run_bot(
     config_path: str,
-    profile: bool = False, 
-    save_performance_results_path: Optional[str] = None, 
-    no_plot: bool = False
-) -> Optional[Dict[str, Any]]:
+    profile: bool = False,
+    save_performance_results_path: str | None = None,
+    no_plot: bool = False,
+) -> dict[str, Any] | None:
     config_manager = initialize_config(config_path)
     config_name = generate_config_name(config_manager)
     setup_logging(config_manager.get_logging_level(), config_manager.should_log_to_file(), config_name)
     event_bus = EventBus()
     notification_handler = initialize_notification_handler(config_manager, event_bus)
-    bot = GridTradingBot(config_path, config_manager, notification_handler, event_bus, save_performance_results_path, no_plot)
+    bot = GridTradingBot(
+        config_path, config_manager, notification_handler, event_bus, save_performance_results_path, no_plot,
+    )
     bot_controller = BotController(bot, event_bus)
     health_check = HealthCheck(bot, notification_handler, event_bus)
-    
+
     if profile:
         cProfile.runctx("asyncio.run(bot.run())", globals(), locals(), "profile_results.prof")
         return None
@@ -56,13 +66,13 @@ async def run_bot(
             await asyncio.gather(bot_task, bot_controller_task, health_check_task)
         else:
             await bot.run()
-    
+
     except asyncio.CancelledError:
         logging.info("Cancellation received. Shutting down gracefully.")
 
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}", exc_info=True)
-    
+
     finally:
         try:
             await event_bus.shutdown()
@@ -70,13 +80,13 @@ async def run_bot(
         except Exception as e:
             logging.error(f"Error during EventBus shutdown: {e}", exc_info=True)
 
+
 async def cleanup_tasks():
     logging.info("Shutting down bot and cleaning up tasks...")
 
     current_task = asyncio.current_task()
     tasks_to_cancel = {
-        task for task in asyncio.all_tasks()
-        if task is not current_task and not task.done() and not task.cancelled()
+        task for task in asyncio.all_tasks() if task is not current_task and not task.done() and not task.cancelled()
     }
 
     logging.info(f"Tasks to cancel: {len(tasks_to_cancel)}")
@@ -94,9 +104,10 @@ async def cleanup_tasks():
     except Exception as e:
         logging.error(f"Error during task cancellation: {e}", exc_info=True)
 
+
 if __name__ == "__main__":
     args = parse_and_validate_console_args()
-    
+
     async def main():
         try:
             tasks = [
@@ -110,7 +121,7 @@ if __name__ == "__main__":
                 if isinstance(result, Exception):
                     logging.error(
                         f"Error occurred while running bot for config {args.config[index]}: {result}",
-                        exc_info=True
+                        exc_info=True,
                     )
                 else:
                     if args.save_performance_results:

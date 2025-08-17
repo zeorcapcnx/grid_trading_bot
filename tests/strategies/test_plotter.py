@@ -1,12 +1,15 @@
-import pytest
 from unittest.mock import Mock, patch
+
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import pytest
+
 from core.grid_management.grid_manager import GridManager
-from core.order_handling.order_book import OrderBook
 from core.order_handling.order import Order, OrderSide, OrderType
+from core.order_handling.order_book import OrderBook
 from strategies.plotter import Plotter
+
 
 class TestPlotter:
     @pytest.fixture
@@ -30,8 +33,8 @@ class TestPlotter:
 
         assert len(fig.data) == 4  # 1 dummy trace + 3 grid lines
         assert fig.data[1].line.color == "green"  # Below central price
-        assert fig.data[2].line.color == "red"    # Above central price
-        assert fig.data[3].line.color == "red"    # Above central price
+        assert fig.data[2].line.color == "red"  # Above central price
+        assert fig.data[3].line.color == "red"  # Above central price
 
     def test_add_trigger_price_line(self, setup_plotter):
         plotter, grid_manager, _ = setup_plotter
@@ -65,7 +68,7 @@ class TestPlotter:
                 datetime="2024-01-01T00:00:00Z",
                 last_trade_timestamp=1695890800,
                 symbol="BTC/USDT",
-                time_in_force="GTC"
+                time_in_force="GTC",
             ),
             Order(
                 identifier="124",
@@ -81,8 +84,8 @@ class TestPlotter:
                 datetime="2024-01-02T00:00:00Z",
                 last_trade_timestamp=1695890800,
                 symbol="BTC/USDT",
-                time_in_force="GTC"
-            )
+                time_in_force="GTC",
+            ),
         ]
         order_book.get_completed_orders.return_value = orders
 
@@ -98,7 +101,7 @@ class TestPlotter:
 
         data = pd.DataFrame(
             {"open": [100, 110], "close": [110, 105], "volume": [500, 700]},
-            index=pd.date_range("2024-01-01", periods=2)
+            index=pd.date_range("2024-01-01", periods=2),
         )
 
         plotter._add_volume_trace(fig, data)
@@ -106,7 +109,7 @@ class TestPlotter:
         assert len(fig.data) == 1
         assert fig.data[0].type == "bar"
         assert fig.data[0].y.tolist() == [500, 700]
-        assert list(fig.data[0].marker.color) == ['green', 'red']
+        assert list(fig.data[0].marker.color) == ["green", "red"]
 
     def test_add_account_value_trace(self, setup_plotter):
         plotter, _, _ = setup_plotter
@@ -124,8 +127,15 @@ class TestPlotter:
     def test_plot_results(self, mock_show, setup_plotter):
         plotter, grid_manager, order_book = setup_plotter
         data = pd.DataFrame(
-            {"open": [100, 105], "high": [110, 115], "low": [95, 100], "close": [105, 110], "volume": [500, 700], "account_value": [10000, 10500]},
-            index=pd.date_range("2024-01-01", periods=2)
+            {
+                "open": [100, 105],
+                "high": [110, 115],
+                "low": [95, 100],
+                "close": [105, 110],
+                "volume": [500, 700],
+                "account_value": [10000, 10500],
+            },
+            index=pd.date_range("2024-01-01", periods=2),
         )
 
         grid_manager.price_grids = [90, 100, 110]

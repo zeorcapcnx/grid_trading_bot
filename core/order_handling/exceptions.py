@@ -1,14 +1,15 @@
-from .order import OrderType, OrderSide
+from .order import OrderSide, OrderType
+
 
 class OrderExecutionFailedError(Exception):
     def __init__(
-        self, 
-        message: str, 
+        self,
+        message: str,
         order_side: OrderSide,
-        order_type: OrderType, 
-        pair: str, 
+        order_type: OrderType,
+        pair: str,
         quantity: float,
-        price: float
+        price: float,
     ):
         super().__init__(message)
         self.order_side = order_side

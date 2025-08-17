@@ -1,16 +1,21 @@
-import pytest, os
-from unittest.mock import Mock, AsyncMock, patch, MagicMock, ANY
+import os
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock, patch
+
+import pytest
+
 from config.config_manager import ConfigManager
-from core.bot_management.grid_trading_bot import GridTradingBot
-from core.bot_management.event_bus import EventBus
-from core.bot_management.notification.notification_handler import NotificationHandler
-from core.services.exceptions import UnsupportedExchangeError, DataFetchError, UnsupportedTimeframeError
 from config.trading_mode import TradingMode
+from core.bot_management.event_bus import EventBus
+from core.bot_management.grid_trading_bot import GridTradingBot
+from core.bot_management.notification.notification_handler import NotificationHandler
+from core.services.exceptions import DataFetchError, UnsupportedExchangeError, UnsupportedTimeframeError
+
 
 @pytest.fixture(autouse=True)
 def mock_env_vars():
     with patch.dict(os.environ, {"EXCHANGE_API_KEY": "test_api_key", "EXCHANGE_SECRET_KEY": "test_secret_key"}):
         yield
+
 
 class TestGridTradingBot:
     @pytest.fixture
@@ -44,11 +49,16 @@ class TestGridTradingBot:
             notification_handler=notification_handler,
             event_bus=mock_event_bus,
             save_performance_results_path="results.json",
-            no_plot=True
+            no_plot=True,
         )
 
-    @patch("core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service", side_effect=UnsupportedExchangeError("Unsupported Exchange"))
-    def test_initialization_with_unsupported_exchange_error(self, mock_exchange_service, config_manager, notification_handler, mock_event_bus):
+    @patch(
+        "core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service",
+        side_effect=UnsupportedExchangeError("Unsupported Exchange"),
+    )
+    def test_initialization_with_unsupported_exchange_error(
+        self, mock_exchange_service, config_manager, notification_handler, mock_event_bus,
+    ):
         with patch("core.bot_management.grid_trading_bot.logging.getLogger") as mock_logger:
             logger_instance = Mock()
             mock_logger.return_value = logger_instance
@@ -58,8 +68,13 @@ class TestGridTradingBot:
 
             logger_instance.error.assert_called_once_with("UnsupportedExchangeError: Unsupported Exchange")
 
-    @patch("core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service", side_effect=DataFetchError("Data Fetch Error"))
-    def test_initialization_with_data_fetch_error(self, mock_exchange_service, config_manager, notification_handler, mock_event_bus):
+    @patch(
+        "core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service",
+        side_effect=DataFetchError("Data Fetch Error"),
+    )
+    def test_initialization_with_data_fetch_error(
+        self, mock_exchange_service, config_manager, notification_handler, mock_event_bus,
+    ):
         with patch("core.bot_management.grid_trading_bot.logging.getLogger") as mock_logger:
             logger_instance = Mock()
             mock_logger.return_value = logger_instance
@@ -69,8 +84,13 @@ class TestGridTradingBot:
 
             logger_instance.error.assert_called_once_with("DataFetchError: Data Fetch Error")
 
-    @patch("core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service", side_effect=UnsupportedTimeframeError("Unsupported Timeframe"))
-    def test_initialization_with_unsupported_timeframe_error(self, mock_exchange_service, config_manager, notification_handler, mock_event_bus):
+    @patch(
+        "core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service",
+        side_effect=UnsupportedTimeframeError("Unsupported Timeframe"),
+    )
+    def test_initialization_with_unsupported_timeframe_error(
+        self, mock_exchange_service, config_manager, notification_handler, mock_event_bus,
+    ):
         with patch("core.bot_management.grid_trading_bot.logging.getLogger") as mock_logger:
             logger_instance = Mock()
             mock_logger.return_value = logger_instance
@@ -80,8 +100,13 @@ class TestGridTradingBot:
 
             logger_instance.error.assert_called_once_with("UnsupportedTimeframeError: Unsupported Timeframe")
 
-    @patch("core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service", side_effect=Exception("Unexpected Error"))
-    def test_initialization_with_unexpected_exception(self, mock_exchange_service, config_manager, notification_handler, mock_event_bus):
+    @patch(
+        "core.bot_management.grid_trading_bot.ExchangeServiceFactory.create_exchange_service",
+        side_effect=Exception("Unexpected Error"),
+    )
+    def test_initialization_with_unexpected_exception(
+        self, mock_exchange_service, config_manager, notification_handler, mock_event_bus,
+    ):
         with patch("core.bot_management.grid_trading_bot.logging.getLogger") as mock_logger:
             logger_instance = Mock()
             mock_logger.return_value = logger_instance
@@ -135,7 +160,7 @@ class TestGridTradingBot:
         mock_performance.return_value = {
             "config": bot.config_path,
             "performance_summary": {"profit": 100},
-            "orders": []
+            "orders": [],
         }
 
         result = bot._generate_and_log_performance()
@@ -143,7 +168,7 @@ class TestGridTradingBot:
         assert result == {
             "config": bot.config_path,
             "performance_summary": {"profit": 100},
-            "orders": []
+            "orders": [],
         }
 
     @pytest.mark.asyncio
@@ -169,7 +194,7 @@ class TestGridTradingBot:
             "reserved_fiat": 0.0,
             "reserved_crypto": 0.0,
         }
-    
+
     @patch("core.bot_management.grid_trading_bot.GridTradingStrategy")
     @pytest.mark.asyncio
     async def test_run_strategy_with_exception(self, mock_strategy, bot):
@@ -274,7 +299,7 @@ class TestGridTradingBot:
         await bot._handle_start_bot_event("Test reason")
 
         bot.restart.assert_awaited_once()
-    
+
     @patch("core.bot_management.grid_trading_bot.GridTradingStrategy")
     @pytest.mark.asyncio
     async def test_run_with_plotting_enabled(self, mock_strategy, bot):

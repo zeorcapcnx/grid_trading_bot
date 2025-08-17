@@ -1,15 +1,17 @@
-from config.trading_mode import TradingMode
 from config.config_manager import ConfigManager
-from .live_order_execution_strategy import LiveOrderExecutionStrategy
-from .backtest_order_execution_strategy import BacktestOrderExecutionStrategy
-from .order_execution_strategy_interface import OrderExecutionStrategyInterface
+from config.trading_mode import TradingMode
 from core.services.exchange_interface import ExchangeInterface
+
+from .backtest_order_execution_strategy import BacktestOrderExecutionStrategy
+from .live_order_execution_strategy import LiveOrderExecutionStrategy
+from .order_execution_strategy_interface import OrderExecutionStrategyInterface
+
 
 class OrderExecutionStrategyFactory:
     @staticmethod
     def create(
-        config_manager: ConfigManager, 
-        exchange_service: ExchangeInterface
+        config_manager: ConfigManager,
+        exchange_service: ExchangeInterface,
     ) -> OrderExecutionStrategyInterface:
         trading_mode = config_manager.get_trading_mode()
 

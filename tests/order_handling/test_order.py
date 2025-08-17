@@ -1,5 +1,7 @@
 import pytest
-from core.order_handling.order import Order, OrderType, OrderStatus, OrderSide
+
+from core.order_handling.order import Order, OrderSide, OrderStatus, OrderType
+
 
 class TestOrder:
     @pytest.fixture
@@ -18,7 +20,7 @@ class TestOrder:
             datetime="2024-01-01T00:00:00Z",
             last_trade_timestamp=None,
             symbol="BTC/USDT",
-            time_in_force="GTC"
+            time_in_force="GTC",
         )
 
     def test_create_order_with_valid_data(self, sample_order):
@@ -88,15 +90,15 @@ class TestOrder:
             time_in_force="GTC",
             trades=[
                 {"id": "trade1", "price": 1950.0, "amount": 1.0},
-                {"id": "trade2", "price": 1950.0, "amount": 2.0}
+                {"id": "trade2", "price": 1950.0, "amount": 2.0},
             ],
             fee={"currency": "USDT", "cost": 5.0},
-            cost=5850.0
+            cost=5850.0,
         )
         assert order.is_filled() is True
         assert order.fee == {"currency": "USDT", "cost": 5.0}
         assert order.trades == [
             {"id": "trade1", "price": 1950.0, "amount": 1.0},
-            {"id": "trade2", "price": 1950.0, "amount": 2.0}
+            {"id": "trade2", "price": 1950.0, "amount": 2.0},
         ]
         assert order.cost == 5850.0

@@ -1,6 +1,11 @@
-import pytest, asyncio, logging
-from unittest.mock import Mock, AsyncMock
+import asyncio
+import logging
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
 from core.bot_management.event_bus import EventBus, Events
+
 
 class TestEventBus:
     @pytest.fixture
@@ -62,7 +67,7 @@ class TestEventBus:
 
     @pytest.mark.asyncio
     async def test_safe_invoke_async_with_exception(self, event_bus, caplog):
-        failing_callback = AsyncMock(side_effect=Exception("Async Error"))        
+        failing_callback = AsyncMock(side_effect=Exception("Async Error"))
         caplog.set_level(logging.DEBUG)
 
         await event_bus._safe_invoke_async(failing_callback, {"data": "test"})

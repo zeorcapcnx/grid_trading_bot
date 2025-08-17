@@ -1,14 +1,20 @@
-import logging, asyncio, inspect
-from typing import Callable, Dict, List, Any, Awaitable, Union
+import asyncio
+from collections.abc import Awaitable, Callable
+import inspect
+import logging
+from typing import Any
+
 
 class Events:
     """
     Defines event types for the EventBus.
     """
+
     ORDER_FILLED = "order_filled"
     ORDER_CANCELLED = "order_cancelled"
     START_BOT = "start_bot"
     STOP_BOT = "stop_bot"
+
 
 class EventBus:
     """
@@ -20,13 +26,13 @@ class EventBus:
         Initializes the EventBus with an empty subscriber list.
         """
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.subscribers: Dict[str, List[Callable[[Any], None]]] = {}
+        self.subscribers: dict[str, list[Callable[[Any], None]]] = {}
         self._tasks: set[asyncio.Task] = set()
 
     def subscribe(
-        self, 
-        event_type: str, 
-        callback: Union[Callable[[Any], None], Callable[[Any], Awaitable[None]]]
+        self,
+        event_type: str,
+        callback: Callable[[Any], None] | Callable[[Any], Awaitable[None]],
     ) -> None:
         """
         Subscribes a callback to a specific event type.
@@ -45,9 +51,9 @@ class EventBus:
         self.logger.info(f"Callback '{callback_name}' subscribed to event: {event_type} by {caller_name}")
 
     async def publish(
-        self, 
-        event_type: str, 
-        data: Any = None
+        self,
+        event_type: str,
+        data: Any = None,
     ) -> None:
         """
         Publishes an event asynchronously to all subscribers.
@@ -58,7 +64,8 @@ class EventBus:
 
         self.logger.info(f"Publishing async event: {event_type} with data: {data}")
         tasks = [
-            self._safe_invoke_async(callback, data) if asyncio.iscoroutinefunction(callback) 
+            self._safe_invoke_async(callback, data)
+            if asyncio.iscoroutinefunction(callback)
             else asyncio.to_thread(self._safe_invoke_sync, callback, data)
             for callback in self.subscribers[event_type]
         ]
@@ -69,9 +76,9 @@ class EventBus:
                     self.logger.error(f"Exception in async event callback: {result}", exc_info=True)
 
     def publish_sync(
-        self, 
-        event_type: str, 
-        data: Any
+        self,
+        event_type: str,
+        data: Any,
     ) -> None:
         """
         Publishes an event synchronously to all subscribers.
@@ -86,9 +93,9 @@ class EventBus:
                     self._safe_invoke_sync(callback, data)
 
     async def _safe_invoke_async(
-        self, 
-        callback: Callable[[Any], None], 
-        data: Any
+        self,
+        callback: Callable[[Any], None],
+        data: Any,
     ) -> None:
         """
         Safely invokes an async callback, suppressing and logging any exceptions.
@@ -102,11 +109,11 @@ class EventBus:
 
         task.add_done_callback(remove_task)
         self.logger.debug(f"Task created for callback '{callback.__name__}' with data: {data}")
-    
+
     async def _invoke_callback(
-        self, 
-        callback: Callable[[Any], None], 
-        data: Any
+        self,
+        callback: Callable[[Any], None],
+        data: Any,
     ) -> None:
         try:
             self.logger.info(f"Executing async callback '{callback.__name__}' for event with data: {data}")
@@ -115,9 +122,9 @@ class EventBus:
             self.logger.error(f"Error in async callback '{callback.__name__}': {e}", exc_info=True)
 
     def _safe_invoke_sync(
-        self, 
-        callback: Callable[[Any], None], 
-        data: Any
+        self,
+        callback: Callable[[Any], None],
+        data: Any,
     ) -> None:
         """
         Safely invokes a sync callback, suppressing and logging any exceptions.
@@ -126,7 +133,7 @@ class EventBus:
             callback(data)
         except Exception as e:
             self.logger.error(f"Error in sync subscriber callback: {e}", exc_info=True)
-    
+
     async def shutdown(self):
         """
         Cancels all active tasks tracked by the EventBus for graceful shutdown.

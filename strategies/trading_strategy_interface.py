@@ -1,12 +1,13 @@
-import logging
 from abc import ABC, abstractmethod
-from typing import Tuple
+import logging
+
 
 class TradingStrategyInterface(ABC):
     """
     Abstract base class for all trading strategies.
     Requires implementation of key methods for any concrete strategy.
     """
+
     def __init__(self, config_manager, balance_tracker):
         """
         Initializes the strategy with the given configuration manager and balance tracker.
@@ -44,7 +45,7 @@ class TradingStrategyInterface(ABC):
         pass
 
     @abstractmethod
-    def generate_performance_report(self) -> Tuple[dict, list]:
+    def generate_performance_report(self) -> tuple[dict, list]:
         """
         Generates a report summarizing the strategy's performance (ROI, max drawdown, etc.).
         Must be implemented by any subclass.

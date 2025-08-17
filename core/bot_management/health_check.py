@@ -1,12 +1,16 @@
-import asyncio, psutil, logging
-from typing import Dict, List
+import asyncio
 from dataclasses import dataclass
-from datetime import datetime
-from core.bot_management.grid_trading_bot import GridTradingBot
-from core.bot_management.notification.notification_handler import NotificationHandler
-from core.bot_management.notification.notification_content import NotificationType
+from datetime import UTC, datetime
+import logging
+
+import psutil
+
 from core.bot_management.event_bus import EventBus, Events
+from core.bot_management.grid_trading_bot import GridTradingBot
+from core.bot_management.notification.notification_content import NotificationType
+from core.bot_management.notification.notification_handler import NotificationHandler
 from utils.constants import RESSOURCE_THRESHOLDS
+
 
 @dataclass
 class ResourceMetrics:
@@ -18,19 +22,20 @@ class ResourceMetrics:
     bot_memory_mb: float
     open_files: int
     thread_count: int
-    
+
+
 class HealthCheck:
     """
     Periodically checks the bot's health and system resource usage and sends alerts if thresholds are exceeded.
     """
 
     def __init__(
-        self, 
-        bot: GridTradingBot, 
+        self,
+        bot: GridTradingBot,
         notification_handler: NotificationHandler,
         event_bus: EventBus,
         check_interval: int = 60,
-        metrics_history_size: int = 60  # Keep 1 hour of metrics at 1-minute intervals
+        metrics_history_size: int = 60,  # Keep 1 hour of metrics at 1-minute intervals
     ):
         """
         Initializes the HealthCheck.
@@ -50,12 +55,12 @@ class HealthCheck:
         self._is_running = False
         self._stop_event = asyncio.Event()
         self.process = psutil.Process()
-        self._metrics_history: List[ResourceMetrics] = []
+        self._metrics_history: list[ResourceMetrics] = []
         self.metrics_history_size = metrics_history_size
         self.process.cpu_percent()  # First call to initialize CPU monitoring
         self.event_bus.subscribe(Events.STOP_BOT, self._handle_stop)
         self.event_bus.subscribe(Events.START_BOT, self._handle_start)
-    
+
     async def start(self):
         """
         Starts the health check monitoring loop.
@@ -80,10 +85,13 @@ class HealthCheck:
 
         except asyncio.CancelledError:
             self.logger.info("HealthCheck task cancelled.")
-            
+
         except Exception as e:
             self.logger.error(f"Unexpected error in HealthCheck: {e}")
-            await self.notification_handler.async_send_notification(NotificationType.ERROR_OCCURRED, error_details=f"Health check encountered an error: {e}")
+            await self.notification_handler.async_send_notification(
+                NotificationType.ERROR_OCCURRED,
+                error_details=f"Health check encountered an error: {e}",
+            )
 
     async def _perform_checks(self):
         """
@@ -95,7 +103,7 @@ class HealthCheck:
         self.logger.info(f"Fetched bot health status: {bot_health}")
         await self._check_and_alert_bot_health(bot_health)
 
-        resource_usage = self._check_resource_usage()        
+        resource_usage = self._check_resource_usage()
         self.logger.info(f"System resource usage: {resource_usage}")
         await self._check_and_alert_resource_usage(resource_usage)
 
@@ -112,51 +120,54 @@ class HealthCheck:
             alerts.append("Trading strategy has encountered issues.")
             self.logger.warning("Trading strategy is not functioning properly.")
 
-        if not health_status["exchange_status"] == "ok":
+        if health_status["exchange_status"] != "ok":
             alerts.append(f"Exchange status is not ok: {health_status['exchange_status']}")
             self.logger.warning(f"Exchange status issue detected: {health_status['exchange_status']}")
 
         if alerts:
             self.logger.info(f"Bot health alerts generated: {alerts}")
-            await self.notification_handler.async_send_notification(NotificationType.HEALTH_CHECK_ALERT, alert_details=" | ".join(alerts))
+            await self.notification_handler.async_send_notification(
+                NotificationType.HEALTH_CHECK_ALERT,
+                alert_details=" | ".join(alerts),
+            )
         else:
             self.logger.info("Bot health is within acceptable parameters.")
 
     def _check_resource_usage(self) -> dict:
         """
         Collects detailed system and bot resource usage metrics.
-        
+
         Returns:
             Dictionary containing various resource metrics.
         """
         # Get system-wide metrics
         cpu_percent = psutil.cpu_percent(interval=1)  # 1 second interval for accurate measurement
         virtual_memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
-        
+        disk = psutil.disk_usage("/")
+
         # Get process-specific metrics
         try:
             bot_memory_info = self.process.memory_info()
             bot_cpu_percent = self.process.cpu_percent()
             open_files = len(self.process.open_files())
             thread_count = self.process.num_threads()
-            
+
             metrics = ResourceMetrics(
-                timestamp=datetime.now(),
+                timestamp=datetime.now(tz=UTC),
                 cpu_percent=cpu_percent,
                 memory_percent=virtual_memory.percent,
                 disk_percent=disk.percent,
                 bot_cpu_percent=bot_cpu_percent,
                 bot_memory_mb=bot_memory_info.rss / (1024 * 1024),  # Convert to MB
                 open_files=open_files,
-                thread_count=thread_count
+                thread_count=thread_count,
             )
-            
+
             # Store metrics history
             self._metrics_history.append(metrics)
             if len(self._metrics_history) > self.metrics_history_size:
                 self._metrics_history.pop(0)
-            
+
             return {
                 "cpu": cpu_percent,
                 "memory": virtual_memory.percent,
@@ -166,40 +177,40 @@ class HealthCheck:
                 "bot_memory_percent": (bot_memory_info.rss / virtual_memory.total) * 100,
                 "open_files": open_files,
                 "thread_count": thread_count,
-                "memory_available_mb": virtual_memory.available / (1024 * 1024)
+                "memory_available_mb": virtual_memory.available / (1024 * 1024),
             }
-            
+
         except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
             self.logger.error(f"Failed to get process metrics: {e}")
             return {
                 "cpu": cpu_percent,
                 "memory": virtual_memory.percent,
                 "disk": disk.percent,
-                "error": str(e)
+                "error": str(e),
             }
 
-    def get_resource_trends(self) -> Dict[str, float]:
+    def get_resource_trends(self) -> dict[str, float]:
         """
         Calculate resource usage trends over the stored history.
-        
+
         Returns:
             Dictionary containing trend metrics (positive values indicate increasing usage).
         """
         if len(self._metrics_history) < 2:
             return {}
-            
+
         recent = self._metrics_history[-1]
         old = self._metrics_history[0]
         time_diff = (recent.timestamp - old.timestamp).total_seconds() / 3600  # hours
 
         if time_diff < 0.016667:  # Less than 1 minute
             return {}
-        
+
         return {
             "cpu_trend": (recent.cpu_percent - old.cpu_percent) / time_diff,
             "memory_trend": (recent.memory_percent - old.memory_percent) / time_diff,
             "bot_cpu_trend": (recent.bot_cpu_percent - old.bot_cpu_percent) / time_diff,
-            "bot_memory_trend": (recent.bot_memory_mb - old.bot_memory_mb) / time_diff
+            "bot_memory_trend": (recent.bot_memory_mb - old.bot_memory_mb) / time_diff,
         }
 
     async def _check_and_alert_resource_usage(self, usage: dict):
@@ -208,7 +219,7 @@ class HealthCheck:
         """
         alerts = []
         trends = self.get_resource_trends()
-        
+
         # Check current values against thresholds
         for resource, threshold in RESSOURCE_THRESHOLDS.items():
             current_value = usage.get(resource, 0)
@@ -223,14 +234,13 @@ class HealthCheck:
 
         # Check for CPU spikes
         if trends.get("bot_cpu_trend", 0) > 10:  # %/hour
-            alerts.append(f"High CPU usage trend: Bot CPU usage increasing by "
-                        f"{trends['bot_cpu_trend']:.1f}%/hour")
+            alerts.append(f"High CPU usage trend: Bot CPU usage increasing by {trends['bot_cpu_trend']:.1f}%/hour")
 
         if alerts:
             self.logger.warning(f"Resource alerts: {alerts}")
             await self.notification_handler.async_send_notification(
                 NotificationType.HEALTH_CHECK_ALERT,
-                alert_details=" | ".join(alerts)
+                alert_details=" | ".join(alerts),
             )
 
     def _handle_stop(self, reason: str) -> None:

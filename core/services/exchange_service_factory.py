@@ -1,13 +1,15 @@
-from .backtest_exchange_service import BacktestExchangeService
-from .live_exchange_service import LiveExchangeService
 from config.config_manager import ConfigManager
 from config.trading_mode import TradingMode
+
+from .backtest_exchange_service import BacktestExchangeService
+from .live_exchange_service import LiveExchangeService
+
 
 class ExchangeServiceFactory:
     @staticmethod
     def create_exchange_service(
         config_manager: ConfigManager,
-        trading_mode: TradingMode
+        trading_mode: TradingMode,
     ):
         if trading_mode == TradingMode.BACKTEST:
             return BacktestExchangeService(config_manager)

@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class TradingMode(Enum):
     BACKTEST = "backtest"
     PAPER_TRADING = "paper_trading"
@@ -10,4 +11,7 @@ class TradingMode(Enum):
         try:
             return TradingMode(mode_str)
         except ValueError:
-            raise ValueError(f"Invalid trading mode: '{mode_str}'. Available modes are: {', '.join([mode.value for mode in TradingMode])}")
+            available_modes = ", ".join([mode.value for mode in TradingMode])
+            raise ValueError(
+                f"Invalid trading mode: '{mode_str}'. Available modes are: {available_modes}",
+            ) from None

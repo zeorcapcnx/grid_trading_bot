@@ -1,16 +1,17 @@
 import time
-from typing import Optional
-from ..order import Order, OrderSide, OrderType, OrderStatus
+
+from ..order import Order, OrderSide, OrderStatus, OrderType
 from .order_execution_strategy_interface import OrderExecutionStrategyInterface
+
 
 class BacktestOrderExecutionStrategy(OrderExecutionStrategyInterface):
     async def execute_market_order(
-        self, 
-        order_side: OrderSide, 
-        pair: str, 
+        self,
+        order_side: OrderSide,
+        pair: str,
         quantity: float,
-        price: float
-    ) -> Optional[Order]:
+        price: float,
+    ) -> Order | None:
         order_id = f"backtest-{int(time.time())}"
         timestamp = int(time.time() * 1000)
         return Order(
@@ -27,16 +28,16 @@ class BacktestOrderExecutionStrategy(OrderExecutionStrategyInterface):
             datetime="111",
             last_trade_timestamp=1,
             symbol=pair,
-            time_in_force="GTC"
+            time_in_force="GTC",
         )
-    
+
     async def execute_limit_order(
-        self, 
-        order_side: OrderSide, 
-        pair: str, 
-        quantity: float, 
-        price: float
-    ) -> Optional[Order]:
+        self,
+        order_side: OrderSide,
+        pair: str,
+        quantity: float,
+        price: float,
+    ) -> Order | None:
         order_id = f"backtest-{int(time.time())}"
         return Order(
             identifier=order_id,
@@ -52,14 +53,14 @@ class BacktestOrderExecutionStrategy(OrderExecutionStrategyInterface):
             datetime="",
             last_trade_timestamp=1,
             symbol=pair,
-            time_in_force="GTC"
+            time_in_force="GTC",
         )
-    
+
     async def get_order(
-        self, 
+        self,
         order_id: str,
-        pair: str
-    ) -> Optional[Order]:
+        pair: str,
+    ) -> Order | None:
         return Order(
             identifier=order_id,
             status=OrderStatus.OPEN,
@@ -74,5 +75,5 @@ class BacktestOrderExecutionStrategy(OrderExecutionStrategyInterface):
             datetime="111",
             last_trade_timestamp=1,
             symbol=pair,
-            time_in_force="GTC"
+            time_in_force="GTC",
         )

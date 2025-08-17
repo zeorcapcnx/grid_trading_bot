@@ -1,32 +1,33 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+
 from ..order import Order, OrderSide
+
 
 class OrderExecutionStrategyInterface(ABC):
     @abstractmethod
     async def execute_market_order(
-        self, 
-        order_side: OrderSide, 
-        pair: str, 
+        self,
+        order_side: OrderSide,
+        pair: str,
         quantity: float,
-        price: float
-    ) -> Optional[Order]:
+        price: float,
+    ) -> Order | None:
         pass
 
     @abstractmethod
     async def execute_limit_order(
-        self, 
-        order_side: OrderSide, 
-        pair: str, 
-        quantity: float, 
-        price: float
-    ) -> Optional[Order]:
+        self,
+        order_side: OrderSide,
+        pair: str,
+        quantity: float,
+        price: float,
+    ) -> Order | None:
         pass
 
     @abstractmethod
     async def get_order(
-        self, 
+        self,
         order_id: str,
-        pair: str
-    ) -> Optional[Order]:
+        pair: str,
+    ) -> Order | None:
         pass

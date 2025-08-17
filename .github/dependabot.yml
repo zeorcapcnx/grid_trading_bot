@@ -9,11 +9,11 @@ updates:
       - dependency-name: "numpy"
       - dependency-name: "pandas"
     labels:
-        - "pip-dependencies"
+      - "pip-dependencies"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     labels:
-        - "actions"
+      - "actions"

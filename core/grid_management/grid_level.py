@@ -1,22 +1,24 @@
 from enum import Enum
-from typing import List, Optional
+
 from ..order_handling.order import Order
+
 
 class GridCycleState(Enum):
     READY_TO_BUY_OR_SELL = "ready_to_buy_or_sell"  # Level is ready for both a buy or a sell order
-    READY_TO_BUY = "ready_to_buy"               # Level is ready for a buy order
+    READY_TO_BUY = "ready_to_buy"  # Level is ready for a buy order
     WAITING_FOR_BUY_FILL = "waiting_for_buy_fill"  # Buy order placed, waiting for execution
-    READY_TO_SELL = "ready_to_sell"             # Level is ready for a sell order
+    READY_TO_SELL = "ready_to_sell"  # Level is ready for a sell order
     WAITING_FOR_SELL_FILL = "waiting_for_sell_fill"  # Sell order placed, waiting for execution
+
 
 class GridLevel:
     def __init__(self, price: float, state: GridCycleState):
         self.price: float = price
-        self.orders: List[Order] = []  # Track all orders at this level
+        self.orders: list[Order] = []  # Track all orders at this level
         self.state: GridCycleState = state
-        self.paired_buy_level: Optional['GridLevel'] = None
-        self.paired_sell_level: Optional['GridLevel'] = None 
-    
+        self.paired_buy_level: GridLevel | None = None
+        self.paired_sell_level: GridLevel | None = None
+
     def add_order(self, order: Order) -> None:
         """
         Record an order at this level.

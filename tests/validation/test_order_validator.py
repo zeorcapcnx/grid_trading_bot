@@ -1,6 +1,12 @@
 import pytest
+
+from core.validation.exceptions import (
+    InsufficientBalanceError,
+    InsufficientCryptoBalanceError,
+    InvalidOrderQuantityError,
+)
 from core.validation.order_validator import OrderValidator
-from core.validation.exceptions import InsufficientBalanceError, InsufficientCryptoBalanceError, InvalidOrderQuantityError
+
 
 class TestOrderValidator:
     @pytest.fixture
@@ -81,5 +87,7 @@ class TestOrderValidator:
         crypto_balance = 0.001  # Just above tolerance threshold
         order_quantity = 3
 
-        with pytest.raises(InsufficientCryptoBalanceError, match="Crypto balance .* is far below the required quantity .*"):
+        with pytest.raises(
+            InsufficientCryptoBalanceError, match="Crypto balance .* is far below the required quantity .*",
+        ):
             validator.adjust_and_validate_sell_quantity(crypto_balance, order_quantity)

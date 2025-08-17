@@ -1,8 +1,11 @@
-import pytest
 from unittest.mock import Mock
-from core.order_handling.order_book import OrderBook
-from core.order_handling.order import Order, OrderSide, OrderStatus
+
+import pytest
+
 from core.grid_management.grid_level import GridLevel
+from core.order_handling.order import Order, OrderSide, OrderStatus
+from core.order_handling.order_book import OrderBook
+
 
 class TestOrderBook:
     @pytest.fixture

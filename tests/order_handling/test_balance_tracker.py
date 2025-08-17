@@ -1,11 +1,14 @@
+from unittest.mock import AsyncMock, Mock
+
 import pytest
-from unittest.mock import Mock, AsyncMock
+
 from config.trading_mode import TradingMode
-from core.order_handling.balance_tracker import BalanceTracker
 from core.bot_management.event_bus import EventBus, Events
+from core.order_handling.balance_tracker import BalanceTracker
 from core.order_handling.fee_calculator import FeeCalculator
-from core.order_handling.order import Order, OrderSide
+from core.order_handling.order import OrderSide
 from core.validation.exceptions import InsufficientBalanceError, InsufficientCryptoBalanceError
+
 
 class TestBalanceTracker:
     @pytest.fixture
@@ -13,11 +16,11 @@ class TestBalanceTracker:
         event_bus = Mock(spec=EventBus)
         fee_calculator = Mock(spec=FeeCalculator)
         balance_tracker = BalanceTracker(
-            event_bus=event_bus, 
-            fee_calculator=fee_calculator, 
+            event_bus=event_bus,
+            fee_calculator=fee_calculator,
             trading_mode=TradingMode.LIVE,
             base_currency="BTC",
-            quote_currency="USDT"
+            quote_currency="USDT",
         )
         return balance_tracker, fee_calculator, event_bus
 
@@ -126,8 +129,10 @@ class TestBalanceTracker:
 
     def test_event_subscription(self, setup_balance_tracker):
         balance_tracker, _, event_bus = setup_balance_tracker
-        event_bus.subscribe.assert_called_once_with(Events.ORDER_FILLED, balance_tracker._update_balance_on_order_completion)
-    
+        event_bus.subscribe.assert_called_once_with(
+            Events.ORDER_FILLED, balance_tracker._update_balance_on_order_completion,
+        )
+
     @pytest.mark.asyncio
     async def test_setup_balances_backtest(self, setup_balance_tracker):
         balance_tracker, _, _ = setup_balance_tracker
@@ -145,7 +150,9 @@ class TestBalanceTracker:
         balance_tracker._fetch_live_balances = AsyncMock(return_value=(1500, 5))
 
         balance_tracker.trading_mode = TradingMode.LIVE
-        await balance_tracker.setup_balances(initial_balance=0, initial_crypto_balance=0, exchange_service=mock_exchange_service)
+        await balance_tracker.setup_balances(
+            initial_balance=0, initial_crypto_balance=0, exchange_service=mock_exchange_service,
+        )
 
         balance_tracker._fetch_live_balances.assert_awaited_once_with(mock_exchange_service)
         assert balance_tracker.balance == 1500
@@ -158,7 +165,9 @@ class TestBalanceTracker:
         balance_tracker._fetch_live_balances = AsyncMock(return_value=(1000, 3))
 
         balance_tracker.trading_mode = TradingMode.PAPER_TRADING
-        await balance_tracker.setup_balances(initial_balance=0, initial_crypto_balance=0, exchange_service=mock_exchange_service)
+        await balance_tracker.setup_balances(
+            initial_balance=0, initial_crypto_balance=0, exchange_service=mock_exchange_service,
+        )
 
         balance_tracker._fetch_live_balances.assert_awaited_once_with(mock_exchange_service)
         assert balance_tracker.balance == 1000
@@ -172,7 +181,7 @@ class TestBalanceTracker:
             "free": {
                 "USDT": 1000,
                 "BTC": 5,
-            }
+            },
         }
 
         balances = await balance_tracker._fetch_live_balances(exchange_service=mock_exchange_service)
