@@ -1,4 +1,8 @@
-from .exceptions import InsufficientBalanceError, InsufficientCryptoBalanceError, InvalidOrderQuantityError
+from .exceptions import (
+    InsufficientBalanceError,
+    InsufficientCryptoBalanceError,
+    InvalidOrderQuantityError,
+)
 
 
 class OrderValidator:

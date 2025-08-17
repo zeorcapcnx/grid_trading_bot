@@ -23,7 +23,9 @@ def test_parse_and_validate_console_args_required(mock_exists, args, expected_co
 @patch("os.path.exists", return_value=True)
 def test_parse_and_validate_console_args_save_performance_results_exists(mock_exists):
     with patch.object(
-        sys, "argv", ["program_name", "--config", "config.json", "--save_performance_results", "results.json"],
+        sys,
+        "argv",
+        ["program_name", "--config", "config.json", "--save_performance_results", "results.json"],
     ):
         result = parse_and_validate_console_args()
         assert result.save_performance_results == "results.json"
@@ -76,7 +78,9 @@ def test_parse_and_validate_console_args_argument_error(mock_log):
 def test_parse_and_validate_console_args_unexpected_error(mock_log):
     with (
         patch.object(
-            sys, "argv", ["program_name", "--config", "config.json", "--save_performance_results", "results.json"],
+            sys,
+            "argv",
+            ["program_name", "--config", "config.json", "--save_performance_results", "results.json"],
         ),
         patch("os.path.exists", side_effect=Exception("Unexpected error")),
     ):

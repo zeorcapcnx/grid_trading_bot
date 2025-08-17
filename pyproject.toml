@@ -25,6 +25,7 @@ dev = [
     "pytest-asyncio==0.26.0",
     "pytest-cov==6.1.1",
     "pytest-timeout==2.4.0",
+    "pre-commit==3.6.0",
 ]
 
 [project.urls]
@@ -78,6 +79,7 @@ select = [
 ]
 ignore = [
     "S101",   # assert used (OK in tests)
+    "COM812", # missing trailing comma (handled by formatter)
 ]
 
 [tool.ruff.format]

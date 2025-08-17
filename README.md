@@ -104,7 +104,7 @@ This project leverages [uv](https://github.com/astral-sh/uv) for managing virtua
 
 #### Using `uv` (Recommended)
 
-1. **Install `uv` (if not already installed)**  
+1. **Install `uv` (if not already installed)**
    Ensure `uv` is installed on your system. If not, install it with `pip`:
   ```sh
   pip install uv
@@ -144,7 +144,7 @@ This project leverages [uv](https://github.com/astral-sh/uv) for managing virtua
   ```sh
   pip install -r requirements.txt
   ```
-  
+
   Note: You may need to generate a requirements.txt file from pyproject.toml if it’s not already present. You can use a tool like pipreqs or manually extract dependencies.
 
 ## 📋 Configuration
@@ -228,7 +228,7 @@ The bot is configured via a JSON file `config/config.json` to suit your trading 
   - **range**: Defines the price range of the grid.
     - **top**: The upper price limit of the grid.
     - **bottom**: The lower price limit of the grid.
-  
+
 - **risk_management**: Configurations for risk management.
   - **take_profit**: Settings for taking profit.
     - **enabled**: Whether the take profit is active.
@@ -317,11 +317,11 @@ A `docker-compose.yml` file is included to set up centralized logging using Graf
 
 ### Steps to Set Up:
 
-1. **Ensure Docker and Docker Compose Are Installed**  
+1. **Ensure Docker and Docker Compose Are Installed**
   Verify that Docker and Docker Compose are installed on your system. If not, follow the official [Docker installation guide](https://docs.docker.com/get-docker/).
 
 
-2. **Start the Services**  
+2. **Start the Services**
   Run the following command to spin up Grafana, Loki, and Promtail:
 
   ```sh
@@ -330,7 +330,7 @@ A `docker-compose.yml` file is included to set up centralized logging using Graf
 
 
 3. **Access Grafana Dashboards**
-  
+
   Navigate to http://localhost:3000 in your browser to access the Grafana dashboard.
   Use the following default credentials to log in:
 

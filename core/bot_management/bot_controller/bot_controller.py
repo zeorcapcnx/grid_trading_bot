@@ -42,7 +42,9 @@ class BotController:
         while not self._stop_listening:
             try:
                 command = await loop.run_in_executor(
-                    None, input, "Enter command (quit, orders, balance, stop, restart, pause): ",
+                    None,
+                    input,
+                    "Enter command (quit, orders, balance, stop, restart, pause): ",
                 )
                 await self._handle_command(command.strip().lower())
 

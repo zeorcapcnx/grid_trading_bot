@@ -58,7 +58,8 @@ class TestLiveExchangeService:
         monkeypatch.setenv("EXCHANGE_API_KEY", "test_api_key")
 
         with pytest.raises(
-            MissingEnvironmentVariableError, match="Missing required environment variable: EXCHANGE_SECRET_KEY",
+            MissingEnvironmentVariableError,
+            match="Missing required environment variable: EXCHANGE_SECRET_KEY",
         ):
             LiveExchangeService(config_manager, is_paper_trading_activated=False)
 
@@ -68,7 +69,8 @@ class TestLiveExchangeService:
         monkeypatch.setenv("EXCHANGE_SECRET_KEY", "test_secret_key")
 
         with pytest.raises(
-            MissingEnvironmentVariableError, match="Missing required environment variable: EXCHANGE_API_KEY",
+            MissingEnvironmentVariableError,
+            match="Missing required environment variable: EXCHANGE_API_KEY",
         ):
             LiveExchangeService(config_manager, is_paper_trading_activated=False)
 
@@ -100,7 +102,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.getattr")
     @pytest.mark.asyncio
     async def test_place_order_successful(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance
@@ -114,7 +121,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.getattr")
     @pytest.mark.asyncio
     async def test_place_order_unexpected_error(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance
@@ -129,7 +141,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.getattr")
     @pytest.mark.asyncio
     async def test_get_current_price_successful(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance
@@ -144,7 +161,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.getattr")
     @pytest.mark.asyncio
     async def test_cancel_order_successful(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance
@@ -159,7 +181,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.ccxtpro")
     @patch("core.services.live_exchange_service.getattr")
     async def test_cancel_order_unexpected_error(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance
@@ -167,7 +194,8 @@ class TestLiveExchangeService:
         service = LiveExchangeService(config_manager, is_paper_trading_activated=False)
 
         with pytest.raises(
-            OrderCancellationError, match="Unexpected error while canceling order order123: Unexpected error",
+            OrderCancellationError,
+            match="Unexpected error while canceling order order123: Unexpected error",
         ):
             await service.cancel_order("order123", "BTC/USD")
         mock_exchange_instance.cancel_order.assert_awaited_once_with("order123", "BTC/USD")
@@ -176,7 +204,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.ccxtpro")
     @patch("core.services.live_exchange_service.getattr")
     async def test_cancel_order_network_error(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance
@@ -269,7 +302,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.ccxtpro")
     @patch("core.services.live_exchange_service.getattr")
     async def test_close_connection(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance
@@ -350,7 +388,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.ccxtpro")
     @patch("core.services.live_exchange_service.getattr")
     async def test_subscribe_to_ticker_updates_max_retries_exceeded(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance
@@ -369,7 +412,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.ccxtpro")
     @patch("core.services.live_exchange_service.getattr")
     async def test_subscribe_to_ticker_updates_close_error(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance
@@ -397,7 +445,13 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.ccxtpro")
     @patch("core.services.live_exchange_service.getattr")
     def test_enable_sandbox_mode_all_exchanges(
-        self, mock_getattr, mock_ccxtpro, exchange_name, expected_url, config_manager, setup_env_vars,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        exchange_name,
+        expected_url,
+        config_manager,
+        setup_env_vars,
     ):
         config_manager.get_exchange_name.return_value = exchange_name
         mock_exchange_instance = Mock()
@@ -419,7 +473,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.ccxtpro")
     @patch("core.services.live_exchange_service.getattr")
     async def test_place_order_network_error(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance
@@ -434,7 +493,12 @@ class TestLiveExchangeService:
     @patch("core.services.live_exchange_service.ccxtpro")
     @patch("core.services.live_exchange_service.getattr")
     async def test_fetch_order_network_error(
-        self, mock_getattr, mock_ccxtpro, config_manager, setup_env_vars, mock_exchange_instance,
+        self,
+        mock_getattr,
+        mock_ccxtpro,
+        config_manager,
+        setup_env_vars,
+        mock_exchange_instance,
     ):
         mock_getattr.return_value = mock_ccxtpro.binance
         mock_ccxtpro.binance.return_value = mock_exchange_instance

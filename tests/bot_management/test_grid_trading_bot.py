@@ -8,7 +8,11 @@ from config.trading_mode import TradingMode
 from core.bot_management.event_bus import EventBus
 from core.bot_management.grid_trading_bot import GridTradingBot
 from core.bot_management.notification.notification_handler import NotificationHandler
-from core.services.exceptions import DataFetchError, UnsupportedExchangeError, UnsupportedTimeframeError
+from core.services.exceptions import (
+    DataFetchError,
+    UnsupportedExchangeError,
+    UnsupportedTimeframeError,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -57,7 +61,11 @@ class TestGridTradingBot:
         side_effect=UnsupportedExchangeError("Unsupported Exchange"),
     )
     def test_initialization_with_unsupported_exchange_error(
-        self, mock_exchange_service, config_manager, notification_handler, mock_event_bus,
+        self,
+        mock_exchange_service,
+        config_manager,
+        notification_handler,
+        mock_event_bus,
     ):
         with patch("core.bot_management.grid_trading_bot.logging.getLogger") as mock_logger:
             logger_instance = Mock()
@@ -73,7 +81,11 @@ class TestGridTradingBot:
         side_effect=DataFetchError("Data Fetch Error"),
     )
     def test_initialization_with_data_fetch_error(
-        self, mock_exchange_service, config_manager, notification_handler, mock_event_bus,
+        self,
+        mock_exchange_service,
+        config_manager,
+        notification_handler,
+        mock_event_bus,
     ):
         with patch("core.bot_management.grid_trading_bot.logging.getLogger") as mock_logger:
             logger_instance = Mock()
@@ -89,7 +101,11 @@ class TestGridTradingBot:
         side_effect=UnsupportedTimeframeError("Unsupported Timeframe"),
     )
     def test_initialization_with_unsupported_timeframe_error(
-        self, mock_exchange_service, config_manager, notification_handler, mock_event_bus,
+        self,
+        mock_exchange_service,
+        config_manager,
+        notification_handler,
+        mock_event_bus,
     ):
         with patch("core.bot_management.grid_trading_bot.logging.getLogger") as mock_logger:
             logger_instance = Mock()
@@ -105,7 +121,11 @@ class TestGridTradingBot:
         side_effect=Exception("Unexpected Error"),
     )
     def test_initialization_with_unexpected_exception(
-        self, mock_exchange_service, config_manager, notification_handler, mock_event_bus,
+        self,
+        mock_exchange_service,
+        config_manager,
+        notification_handler,
+        mock_event_bus,
     ):
         with patch("core.bot_management.grid_trading_bot.logging.getLogger") as mock_logger:
             logger_instance = Mock()

@@ -49,7 +49,12 @@ async def run_bot(
     event_bus = EventBus()
     notification_handler = initialize_notification_handler(config_manager, event_bus)
     bot = GridTradingBot(
-        config_path, config_manager, notification_handler, event_bus, save_performance_results_path, no_plot,
+        config_path,
+        config_manager,
+        notification_handler,
+        event_bus,
+        save_performance_results_path,
+        no_plot,
     )
     bot_controller = BotController(bot, event_bus)
     health_check = HealthCheck(bot, notification_handler, event_bus)

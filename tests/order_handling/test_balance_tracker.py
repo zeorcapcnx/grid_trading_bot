@@ -7,7 +7,10 @@ from core.bot_management.event_bus import EventBus, Events
 from core.order_handling.balance_tracker import BalanceTracker
 from core.order_handling.fee_calculator import FeeCalculator
 from core.order_handling.order import OrderSide
-from core.validation.exceptions import InsufficientBalanceError, InsufficientCryptoBalanceError
+from core.validation.exceptions import (
+    InsufficientBalanceError,
+    InsufficientCryptoBalanceError,
+)
 
 
 class TestBalanceTracker:
@@ -130,7 +133,8 @@ class TestBalanceTracker:
     def test_event_subscription(self, setup_balance_tracker):
         balance_tracker, _, event_bus = setup_balance_tracker
         event_bus.subscribe.assert_called_once_with(
-            Events.ORDER_FILLED, balance_tracker._update_balance_on_order_completion,
+            Events.ORDER_FILLED,
+            balance_tracker._update_balance_on_order_completion,
         )
 
     @pytest.mark.asyncio
@@ -151,7 +155,9 @@ class TestBalanceTracker:
 
         balance_tracker.trading_mode = TradingMode.LIVE
         await balance_tracker.setup_balances(
-            initial_balance=0, initial_crypto_balance=0, exchange_service=mock_exchange_service,
+            initial_balance=0,
+            initial_crypto_balance=0,
+            exchange_service=mock_exchange_service,
         )
 
         balance_tracker._fetch_live_balances.assert_awaited_once_with(mock_exchange_service)
@@ -166,7 +172,9 @@ class TestBalanceTracker:
 
         balance_tracker.trading_mode = TradingMode.PAPER_TRADING
         await balance_tracker.setup_balances(
-            initial_balance=0, initial_crypto_balance=0, exchange_service=mock_exchange_service,
+            initial_balance=0,
+            initial_crypto_balance=0,
+            exchange_service=mock_exchange_service,
         )
 
         balance_tracker._fetch_live_balances.assert_awaited_once_with(mock_exchange_service)

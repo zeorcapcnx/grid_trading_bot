@@ -2,7 +2,9 @@ from unittest.mock import patch
 
 import pytest
 
-from core.order_handling.execution_strategy.backtest_order_execution_strategy import BacktestOrderExecutionStrategy
+from core.order_handling.execution_strategy.backtest_order_execution_strategy import (
+    BacktestOrderExecutionStrategy,
+)
 from core.order_handling.order import OrderSide, OrderStatus, OrderType
 
 

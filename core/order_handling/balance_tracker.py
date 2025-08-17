@@ -4,7 +4,10 @@ from config.trading_mode import TradingMode
 from core.bot_management.event_bus import EventBus, Events
 from core.services.exchange_interface import ExchangeInterface
 
-from ..validation.exceptions import InsufficientBalanceError, InsufficientCryptoBalanceError
+from ..validation.exceptions import (
+    InsufficientBalanceError,
+    InsufficientCryptoBalanceError,
+)
 from .fee_calculator import FeeCalculator
 from .order import Order, OrderSide, OrderStatus
 

@@ -88,6 +88,7 @@ class TestOrderValidator:
         order_quantity = 3
 
         with pytest.raises(
-            InsufficientCryptoBalanceError, match="Crypto balance .* is far below the required quantity .*",
+            InsufficientCryptoBalanceError,
+            match="Crypto balance .* is far below the required quantity .*",
         ):
             validator.adjust_and_validate_sell_quantity(crypto_balance, order_quantity)

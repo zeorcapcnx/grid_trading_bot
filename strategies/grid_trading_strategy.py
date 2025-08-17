@@ -349,7 +349,8 @@ class GridTradingStrategy(TradingStrategyInterface):
         ):
             self.logger.info(f"Take-profit triggered at {current_price}. Executing TP order...")
             await self.order_manager.execute_take_profit_or_stop_loss_order(
-                current_price=current_price, take_profit_order=True,
+                current_price=current_price,
+                take_profit_order=True,
             )
             return True
         return False
@@ -365,7 +366,8 @@ class GridTradingStrategy(TradingStrategyInterface):
         ):
             self.logger.info(f"Stop-loss triggered at {current_price}. Executing SL order...")
             await self.order_manager.execute_take_profit_or_stop_loss_order(
-                current_price=current_price, stop_loss_order=True,
+                current_price=current_price,
+                stop_loss_order=True,
             )
             return True
         return False

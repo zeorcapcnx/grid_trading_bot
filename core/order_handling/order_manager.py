@@ -15,7 +15,9 @@ from ..order_handling.balance_tracker import BalanceTracker
 from ..order_handling.order_book import OrderBook
 from ..validation.order_validator import OrderValidator
 from .exceptions import OrderExecutionFailedError
-from .execution_strategy.order_execution_strategy_interface import OrderExecutionStrategyInterface
+from .execution_strategy.order_execution_strategy_interface import (
+    OrderExecutionStrategyInterface,
+)
 from .order import Order, OrderSide, OrderStatus
 
 

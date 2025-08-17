@@ -19,7 +19,7 @@ scrape_configs:
         labels:
           job: grid_trading_bot
           __path__: /logs/**/*.log
-    
+
     relabel_configs:
       - source_labels: [__path__]
         regex: '.*/bot_(?P<base>[A-Z]+)_(?P<quote>[A-Z]+)_(?P<mode>[A-Z]+)_strategy(?P<strategy>[A-Z_]+)_spacing(?P<spacing>[A-Z]+)_size(?P<size>\d+)_range(?P<range>\d+-\d+)_.*\.log$'
@@ -39,11 +39,11 @@ scrape_configs:
         target_label: grid_size
       - source_labels: [range]
         target_label: grid_range
-    
+
     pipeline_stages:
       - regex:
           expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<service>[A-Za-z0-9_]+) - (?P<level>[A-Z]+) - (?P<log_message>.*)$'
-      
+
       - labels:
           service: '{{ .service }}'
           level: '{{ .level }}'

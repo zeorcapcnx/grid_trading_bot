@@ -147,7 +147,10 @@ class TestOrderManager:
         await manager.execute_take_profit_or_stop_loss_order(55000, take_profit_order=True)
 
         order_execution_strategy.execute_market_order.assert_awaited_once_with(
-            OrderSide.SELL, manager.trading_pair, 0.5, 55000,
+            OrderSide.SELL,
+            manager.trading_pair,
+            0.5,
+            55000,
         )
         notification_handler.async_send_notification.assert_awaited_once()
 

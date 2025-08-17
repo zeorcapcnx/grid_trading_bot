@@ -7,12 +7,18 @@ from config.trading_mode import TradingMode
 from core.bot_management.event_bus import EventBus, Events
 from core.grid_management.grid_manager import GridManager
 from core.order_handling.balance_tracker import BalanceTracker
-from core.order_handling.execution_strategy.order_execution_strategy_factory import OrderExecutionStrategyFactory
+from core.order_handling.execution_strategy.order_execution_strategy_factory import (
+    OrderExecutionStrategyFactory,
+)
 from core.order_handling.fee_calculator import FeeCalculator
 from core.order_handling.order_book import OrderBook
 from core.order_handling.order_manager import OrderManager
 from core.order_handling.order_status_tracker import OrderStatusTracker
-from core.services.exceptions import DataFetchError, UnsupportedExchangeError, UnsupportedTimeframeError
+from core.services.exceptions import (
+    DataFetchError,
+    UnsupportedExchangeError,
+    UnsupportedTimeframeError,
+)
 from core.services.exchange_service_factory import ExchangeServiceFactory
 from core.validation.order_validator import OrderValidator
 from strategies.grid_trading_strategy import GridTradingStrategy
@@ -56,7 +62,8 @@ class GridTradingBot:
             self.is_running = False
 
             self.exchange_service = ExchangeServiceFactory.create_exchange_service(
-                self.config_manager, self.trading_mode,
+                self.config_manager,
+                self.trading_mode,
             )
             order_execution_strategy = OrderExecutionStrategyFactory.create(self.config_manager, self.exchange_service)
             grid_manager = GridManager(self.config_manager, strategy_type)
