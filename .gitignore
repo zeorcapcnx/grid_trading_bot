@@ -38,6 +38,11 @@ grafana-data/
 # `uv` Package Manager
 .uv/
 
+# Virtual environments
+.venv/
+venv/
+env/
+
 # Project specific
 /data/
 logs/*
