@@ -22,8 +22,7 @@
     "order_sizing": "equal_dollar",
     "num_grids": 30,
     "range": {
-      "top": 280,
-      "bottom": 180
+      "mode": "crypto_zero"
     }
   },
   "risk_management": {

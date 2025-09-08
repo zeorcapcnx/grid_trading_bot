@@ -22,6 +22,7 @@
     "order_sizing": "equal_dollar",
     "num_grids": 20,
     "range": {
+      "mode": "manual",
       "top": 2700,
       "bottom": 1900
     }

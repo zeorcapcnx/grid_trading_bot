@@ -4,6 +4,7 @@ import numpy as np
 
 from config.config_manager import ConfigManager
 from strategies.order_sizing_type import OrderSizingType
+from strategies.range_mode import RangeMode
 from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
 
@@ -26,7 +27,7 @@ class GridManager:
         self.sorted_sell_grids: list[float]
         self.grid_levels: dict[float, GridLevel] = {}
 
-    def initialize_grids_and_levels(self) -> None:
+    def initialize_grids_and_levels(self, first_price: float | None = None) -> None:
         """
         Initializes the grid levels and assigns their respective states based on the chosen strategy.
 
@@ -41,7 +42,7 @@ class GridManager:
         - Buy grid levels are initialized with `READY_TO_BUY`, except for the topmost grid.
         - Sell grid levels are initialized with `READY_TO_SELL`.
         """
-        self.price_grids, self.central_price = self._calculate_price_grids_and_central_price()
+        self.price_grids, self.central_price = self._calculate_price_grids_and_central_price(first_price)
 
         if self.strategy_type == StrategyType.SIMPLE_GRID:
             self.sorted_buy_grids = [price_grid for price_grid in self.price_grids if price_grid <= self.central_price]
@@ -341,26 +342,49 @@ class GridManager:
         else:
             return False
 
-    def _extract_grid_config(self) -> tuple[float, float, int, str]:
+    def _extract_grid_config(self, first_price: float | None = None) -> tuple[float, float, int, str]:
         """
         Extracts grid configuration parameters from the configuration manager.
+        Calculates range automatically based on range mode if needed.
         """
-        bottom_range = self.config_manager.get_bottom_range()
-        top_range = self.config_manager.get_top_range()
+        range_mode = self.config_manager.get_range_mode()
         num_grids = self.config_manager.get_num_grids()
         spacing_type = self.config_manager.get_spacing_type()
+        
+        if range_mode == RangeMode.CRYPTO_ZERO:
+            if first_price is None:
+                raise ValueError("first_price is required for CRYPTO_ZERO range mode")
+            
+            # crypto_zero formula: bottom = price/5, top = price + (price - bottom)
+            bottom_range = first_price / 5
+            top_range = first_price + (first_price - bottom_range)
+            
+            self.logger.info(f"CRYPTO_ZERO range mode: first_price={first_price:.2f}, bottom={bottom_range:.2f}, top={top_range:.2f}")
+            
+            # Auto-configure take profit and stop loss thresholds  
+            # TP = top_range, SL = 0.0
+            self.config_manager.set_auto_calculated_ranges(bottom_range, top_range)
+            
+        else:
+            # Default to MANUAL mode - use configured values
+            bottom_range = self.config_manager.get_bottom_range()
+            top_range = self.config_manager.get_top_range()
+            
         return bottom_range, top_range, num_grids, spacing_type
 
-    def _calculate_price_grids_and_central_price(self) -> tuple[list[float], float]:
+    def _calculate_price_grids_and_central_price(self, first_price: float | None = None) -> tuple[list[float], float]:
         """
         Calculates price grids and the central price based on the configuration.
+
+        Args:
+            first_price: The first candle price for auto-calculating ranges
 
         Returns:
             Tuple[List[float], float]: A tuple containing:
                 - grids (List[float]): The list of calculated grid prices.
                 - central_price (float): The central price of the grid.
         """
-        bottom_range, top_range, num_grids, spacing_type = self._extract_grid_config()
+        bottom_range, top_range, num_grids, spacing_type = self._extract_grid_config(first_price)
 
         if spacing_type == SpacingType.ARITHMETIC:
             grids = np.linspace(bottom_range, top_range, num_grids)

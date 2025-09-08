@@ -22,6 +22,7 @@
     "order_sizing": "equal_crypto",
     "num_grids": 50,
     "range": {
+      "mode": "manual",
       "top": 120000,
       "bottom": 0
     }

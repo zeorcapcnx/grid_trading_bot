@@ -32,7 +32,7 @@ class Plotter:
         fig.update_layout(
             title="Grid Trading Strategy Results",
             yaxis_title="Price (USDT)",
-            yaxis2_title="Cash (USDT)",
+            yaxis2_title="Cash Flow (USDT)",
             yaxis3_title="Equity",
             xaxis={"rangeslider": {"visible": False}},
             showlegend=False,

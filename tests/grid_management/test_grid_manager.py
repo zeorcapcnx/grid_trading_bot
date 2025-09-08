@@ -8,6 +8,7 @@ from core.grid_management.grid_level import GridCycleState, GridLevel
 from core.grid_management.grid_manager import GridManager
 from core.order_handling.order import Order, OrderSide
 from strategies.order_sizing_type import OrderSizingType
+from strategies.range_mode import RangeMode
 from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
 
@@ -273,3 +274,118 @@ class TestGridManager:
         grids, central_price = grid_manager._calculate_price_grids_and_central_price()
         np.testing.assert_array_almost_equal(grids, expected_grids, decimal=5)
         assert central_price == 1415.2622462249876
+
+    def test_range_mode_crypto_zero(self, config_manager):
+        """Test CRYPTO_ZERO range mode calculation"""
+        # Mock config for crypto_zero mode
+        config_manager.get_range_mode.return_value = RangeMode.CRYPTO_ZERO
+        config_manager.get_num_grids.return_value = 10
+        config_manager.get_spacing_type.return_value = SpacingType.ARITHMETIC
+        
+        grid_manager = GridManager(config_manager, StrategyType.SIMPLE_GRID)
+        
+        first_price = 100.0
+        bottom_range, top_range, num_grids, spacing_type = grid_manager._extract_grid_config(first_price)
+        
+        # crypto_zero formula: bottom = price/5, top = price + (price - bottom)
+        expected_bottom = first_price / 5  # 20.0
+        expected_top = first_price + (first_price - expected_bottom)  # 100 + 80 = 180.0
+        
+        assert bottom_range == expected_bottom
+        assert top_range == expected_top
+        assert num_grids == 10
+        assert spacing_type == SpacingType.ARITHMETIC
+
+    def test_range_mode_manual(self, config_manager):
+        """Test MANUAL range mode uses configured values"""
+        # Mock config for manual mode
+        config_manager.get_range_mode.return_value = RangeMode.MANUAL
+        config_manager.get_num_grids.return_value = 5
+        config_manager.get_spacing_type.return_value = SpacingType.GEOMETRIC
+        config_manager.get_top_range.return_value = 200.0
+        config_manager.get_bottom_range.return_value = 50.0
+        
+        grid_manager = GridManager(config_manager, StrategyType.SIMPLE_GRID)
+        
+        bottom_range, top_range, num_grids, spacing_type = grid_manager._extract_grid_config()
+        
+        assert bottom_range == 50.0
+        assert top_range == 200.0
+        assert num_grids == 5
+        assert spacing_type == SpacingType.GEOMETRIC
+
+    def test_range_mode_crypto_zero_requires_first_price(self, config_manager):
+        """Test CRYPTO_ZERO mode raises error without first_price"""
+        config_manager.get_range_mode.return_value = RangeMode.CRYPTO_ZERO
+        
+        grid_manager = GridManager(config_manager, StrategyType.SIMPLE_GRID)
+        
+        with pytest.raises(ValueError, match="first_price is required for CRYPTO_ZERO range mode"):
+            grid_manager._extract_grid_config(first_price=None)
+
+    def test_initialize_grids_with_crypto_zero_mode(self, config_manager):
+        """Test full grid initialization with CRYPTO_ZERO mode"""
+        config_manager.get_range_mode.return_value = RangeMode.CRYPTO_ZERO
+        config_manager.get_num_grids.return_value = 5
+        config_manager.get_spacing_type.return_value = SpacingType.ARITHMETIC
+        config_manager.get_order_sizing_type.return_value = OrderSizingType.EQUAL_DOLLAR
+        
+        grid_manager = GridManager(config_manager, StrategyType.SIMPLE_GRID)
+        
+        first_price = 150.0
+        grid_manager.initialize_grids_and_levels(first_price)
+        
+        # Verify grids were created with crypto_zero formula
+        expected_bottom = first_price / 5  # 30.0
+        expected_top = first_price + (first_price - expected_bottom)  # 150 + 120 = 270.0
+        
+        # Check that grids span the expected range
+        assert min(grid_manager.price_grids) == expected_bottom
+        assert max(grid_manager.price_grids) == expected_top
+        assert len(grid_manager.price_grids) == 5
+
+    def test_crypto_zero_auto_configures_risk_management(self, config_manager):
+        """Test that crypto_zero mode auto-configures take profit and stop loss"""
+        config_manager.get_range_mode.return_value = RangeMode.CRYPTO_ZERO
+        config_manager.get_num_grids.return_value = 10
+        config_manager.get_spacing_type.return_value = SpacingType.ARITHMETIC
+        config_manager.get_order_sizing_type.return_value = OrderSizingType.EQUAL_DOLLAR
+        
+        grid_manager = GridManager(config_manager, StrategyType.SIMPLE_GRID)
+        
+        first_price = 200.0
+        grid_manager.initialize_grids_and_levels(first_price)
+        
+        # Verify auto-calculated ranges were set in config manager
+        expected_bottom = first_price / 5  # 40.0
+        expected_top = first_price + (first_price - expected_bottom)  # 200 + 160 = 360.0
+        
+        # Verify set_auto_calculated_ranges was called
+        config_manager.set_auto_calculated_ranges.assert_called_once_with(expected_bottom, expected_top)
+
+    def test_config_manager_returns_auto_thresholds_for_crypto_zero(self):
+        """Test config manager returns auto-configured thresholds for crypto_zero mode"""
+        from config.config_manager import ConfigManager
+        from config.config_validator import ConfigValidator
+        
+        # Create a mock config
+        mock_config = {
+            "grid_strategy": {
+                "range": {"mode": "crypto_zero"},
+            },
+            "risk_management": {
+                "take_profit": {"enabled": True, "threshold": 999},  # Should be overridden
+                "stop_loss": {"enabled": True, "threshold": 888},   # Should be overridden
+            }
+        }
+        
+        config_manager = ConfigManager.__new__(ConfigManager)
+        config_manager.config = mock_config
+        config_manager.logger = Mock()
+        
+        # Set auto-calculated values
+        config_manager.set_auto_calculated_ranges(50.0, 300.0)
+        
+        # Test auto-configured values
+        assert config_manager.get_take_profit_threshold() == 300.0  # top range
+        assert config_manager.get_stop_loss_threshold() == 0.0      # always 0 for crypto_zero

@@ -1,6 +1,7 @@
 import logging
 
 from strategies.order_sizing_type import OrderSizingType
+from strategies.range_mode import RangeMode
 from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
 
@@ -149,22 +150,42 @@ class ConfigValidator:
             invalid_fields.append("grid_strategy.num_grids")
 
         range_ = grid.get("range", {})
-        top = range_.get("top")
-        bottom = range_.get("bottom")
-        if top is None:
-            missing_fields.append("grid_strategy.range.top")
-        if bottom is None:
-            missing_fields.append("grid_strategy.range.bottom")
+        range_mode = range_.get("mode")
+        
+        if range_mode is None:
+            missing_fields.append("grid_strategy.range.mode")
+        else:
+            try:
+                range_mode_enum = RangeMode.from_string(range_mode)
+                
+                # Validate based on range mode
+                if range_mode_enum == RangeMode.MANUAL:
+                    # Manual mode requires top and bottom values
+                    top = range_.get("top")
+                    bottom = range_.get("bottom")
+                    if top is None:
+                        missing_fields.append("grid_strategy.range.top")
+                    if bottom is None:
+                        missing_fields.append("grid_strategy.range.bottom")
 
-        if top is not None and bottom is not None:
-            if not isinstance(top, int | float) or not isinstance(bottom, int | float):
-                self.logger.error("'top' and 'bottom' in 'grid_strategy.range' must be numbers.")
-                invalid_fields.append("grid_strategy.range.top")
-                invalid_fields.append("grid_strategy.range.bottom")
-            elif bottom >= top:
-                self.logger.error("'grid_strategy.range.bottom' must be less than 'grid_strategy.range.top'.")
-                invalid_fields.append("grid_strategy.range.top")
-                invalid_fields.append("grid_strategy.range.bottom")
+                    if top is not None and bottom is not None:
+                        if not isinstance(top, int | float) or not isinstance(bottom, int | float):
+                            self.logger.error("'top' and 'bottom' in 'grid_strategy.range' must be numbers.")
+                            invalid_fields.append("grid_strategy.range.top")
+                            invalid_fields.append("grid_strategy.range.bottom")
+                        elif bottom >= top:
+                            self.logger.error("'grid_strategy.range.bottom' must be less than 'grid_strategy.range.top'.")
+                            invalid_fields.append("grid_strategy.range.top")
+                            invalid_fields.append("grid_strategy.range.bottom")
+                            
+                elif range_mode_enum == RangeMode.CRYPTO_ZERO:
+                    # CRYPTO_ZERO mode doesn't require manual top/bottom values
+                    # Range will be calculated automatically from first candle price
+                    pass
+                    
+            except ValueError as e:
+                self.logger.error(str(e))
+                invalid_fields.append("grid_strategy.range.mode")
 
         return missing_fields, invalid_fields
 

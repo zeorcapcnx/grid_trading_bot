@@ -82,7 +82,12 @@ class GridTradingStrategy(TradingStrategyInterface):
         Initializes the trading strategy by setting up the grid and levels.
         This method prepares the strategy to be ready for trading.
         """
-        self.grid_manager.initialize_grids_and_levels()
+        # Get first price for range calculation if needed
+        first_price = None
+        if self.data is not None and len(self.data) > 0:
+            first_price = self.data["close"].iloc[0]
+            
+        self.grid_manager.initialize_grids_and_levels(first_price)
 
     async def stop(self):
         """

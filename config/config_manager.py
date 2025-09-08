@@ -3,6 +3,7 @@ import logging
 import os
 
 from strategies.order_sizing_type import OrderSizingType
+from strategies.range_mode import RangeMode
 from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
 
@@ -124,6 +125,13 @@ class ConfigManager:
         grid_settings = self.get_grid_settings()
         return grid_settings.get("range", {})
 
+    def get_range_mode(self) -> RangeMode | None:
+        grid_range = self.get_grid_range()
+        range_mode = grid_range.get("mode", None)
+
+        if range_mode:
+            return RangeMode.from_string(range_mode)
+
     def get_top_range(self):
         grid_range = self.get_grid_range()
         return grid_range.get("top", None)
@@ -146,7 +154,13 @@ class ConfigManager:
 
     def get_take_profit_threshold(self):
         take_profit = self.get_take_profit()
-        return take_profit.get("threshold", None)
+        threshold = take_profit.get("threshold", None)
+        
+        # Auto-configure for crypto_zero mode
+        if self.get_range_mode() == RangeMode.CRYPTO_ZERO and hasattr(self, '_auto_calculated_top_range'):
+            return self._auto_calculated_top_range
+            
+        return threshold
 
     def get_stop_loss(self):
         risk_management = self.get_risk_management()
@@ -158,7 +172,21 @@ class ConfigManager:
 
     def get_stop_loss_threshold(self):
         stop_loss = self.get_stop_loss()
-        return stop_loss.get("threshold", None)
+        threshold = stop_loss.get("threshold", None)
+        
+        # Auto-configure for crypto_zero mode - set stop loss to 0
+        if self.get_range_mode() == RangeMode.CRYPTO_ZERO:
+            return 0.0
+            
+        return threshold
+
+    def set_auto_calculated_ranges(self, bottom_range: float, top_range: float) -> None:
+        """
+        Sets auto-calculated range values for crypto_zero mode.
+        Take profit threshold = top_range, Stop loss threshold = 0.
+        """
+        self._auto_calculated_top_range = top_range
+        self.logger.info(f"Auto-configured risk management: TP={top_range:.2f}, SL=0.0")
 
     # --- Logging Accessor Methods ---
     def get_logging(self):

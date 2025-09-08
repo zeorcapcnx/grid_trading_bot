@@ -112,12 +112,66 @@ class TradingPerformanceAnalyzer:
         Returns:
             float: The Sharpe ratio.
         """
-        returns = data["account_value"].pct_change(fill_method=None)
-        excess_returns = returns - ANNUAL_RISK_FREE_RATE / 252  # Adjusted daily
-        std_dev = excess_returns.std()
-        if std_dev == 0:
+        if len(data) < 2:
             return 0.0
-        sharpe_ratio = excess_returns.mean() / std_dev * np.sqrt(252)
+            
+        # Calculate total return and time period
+        initial_value = data["account_value"].iloc[0]
+        final_value = data["account_value"].iloc[-1]
+        
+        if initial_value <= 0:
+            return 0.0
+            
+        # Total return
+        total_return = (final_value / initial_value) - 1
+        
+        # Time period in years - use actual dates, not data point count
+        start_date = data.index[0]
+        end_date = data.index[-1]
+        time_period_days = (end_date - start_date).days + 1
+        time_period_years = time_period_days / 365.25
+        
+        if time_period_years <= 0:
+            return 0.0
+        
+        # Annualized return
+        annual_return = ((1 + total_return) ** (1 / time_period_years)) - 1
+        
+        # Calculate returns for volatility (respecting data frequency)
+        returns = data["account_value"].pct_change(fill_method=None).dropna()
+        if len(returns) == 0:
+            return 0.0
+            
+        # Determine data frequency and adjust volatility scaling
+        if len(returns) > 1:
+            # Calculate time delta between observations
+            time_diff = data.index[1] - data.index[0]
+            if hasattr(time_diff, 'seconds'):
+                minutes_per_observation = time_diff.seconds / 60
+                observations_per_day = 1440 / minutes_per_observation  # 1440 minutes per day
+                observations_per_year = observations_per_day * 252     # Trading days
+            else:
+                # Fallback: assume daily data
+                observations_per_year = 252
+        else:
+            observations_per_year = 252
+        
+        period_volatility = returns.std()
+        if period_volatility == 0:
+            # No volatility - return simplified ratio
+            return round((annual_return - ANNUAL_RISK_FREE_RATE) * 10, 2) if annual_return > ANNUAL_RISK_FREE_RATE else 0.0
+        
+        # Properly annualize volatility based on data frequency
+        annual_volatility = period_volatility * np.sqrt(observations_per_year)
+        
+        # Calculate Sharpe ratio
+        sharpe_ratio = (annual_return - ANNUAL_RISK_FREE_RATE) / annual_volatility
+        
+        self.logger.info(f"Sharpe calculation: {time_period_days} days ({time_period_years:.2f} years)")
+        self.logger.info(f"Data frequency: {observations_per_year:.0f} observations/year (√{observations_per_year:.0f} volatility scaling)")
+        self.logger.info(f"Total return: {total_return:.4f} ({total_return*100:.2f}%), Annual return: {annual_return:.4f} ({annual_return*100:.2f}%)")
+        self.logger.info(f"Period volatility: {period_volatility:.6f}, Annual volatility: {annual_volatility:.4f}")
+        self.logger.info(f"Sharpe ratio: ({annual_return:.4f} - {ANNUAL_RISK_FREE_RATE:.4f}) / {annual_volatility:.4f} = {sharpe_ratio:.4f}")
         return round(sharpe_ratio, 2)
 
     def _calculate_sortino_ratio(self, data: pd.DataFrame) -> float:
@@ -130,14 +184,75 @@ class TradingPerformanceAnalyzer:
         Returns:
             float: The Sortino ratio.
         """
-        returns = data["account_value"].pct_change(fill_method=None)
-        excess_returns = returns - ANNUAL_RISK_FREE_RATE / 252  # Adjusted daily
-        downside_returns = excess_returns[excess_returns < 0]
-
-        if len(downside_returns) == 0 or downside_returns.std() == 0:
-            return round(excess_returns.mean() * np.sqrt(252), 2)  # Positive ratio if no downside
-
-        sortino_ratio = excess_returns.mean() / downside_returns.std() * np.sqrt(252)
+        if len(data) < 2:
+            return 0.0
+            
+        # Calculate total return and time period (same as Sharpe)
+        initial_value = data["account_value"].iloc[0]
+        final_value = data["account_value"].iloc[-1]
+        
+        if initial_value <= 0:
+            return 0.0
+            
+        # Total return
+        total_return = (final_value / initial_value) - 1
+        
+        # Time period in years - use actual dates, not data point count
+        start_date = data.index[0]
+        end_date = data.index[-1]
+        time_period_days = (end_date - start_date).days + 1
+        time_period_years = time_period_days / 365.25
+        
+        if time_period_years <= 0:
+            return 0.0
+        
+        # Annualized return
+        annual_return = ((1 + total_return) ** (1 / time_period_years)) - 1
+        
+        # Calculate returns for downside deviation (respecting data frequency)
+        returns = data["account_value"].pct_change(fill_method=None).dropna()
+        if len(returns) == 0:
+            return 0.0
+        
+        # Determine data frequency for proper risk-free rate scaling
+        if len(returns) > 1:
+            # Calculate time delta between observations
+            time_diff = data.index[1] - data.index[0]
+            if hasattr(time_diff, 'seconds'):
+                minutes_per_observation = time_diff.seconds / 60
+                observations_per_day = 1440 / minutes_per_observation  # 1440 minutes per day
+                observations_per_year = observations_per_day * 252     # Trading days
+            else:
+                # Fallback: assume daily data
+                observations_per_year = 252
+        else:
+            observations_per_year = 252
+            
+        # Calculate period risk-free rate (not daily)
+        period_risk_free = ANNUAL_RISK_FREE_RATE / observations_per_year
+        downside_returns = returns[returns < period_risk_free] - period_risk_free
+        
+        if len(downside_returns) == 0:
+            # No downside risk - return high positive value if annual return > risk free
+            result = round((annual_return - ANNUAL_RISK_FREE_RATE) * 10, 2) if annual_return > ANNUAL_RISK_FREE_RATE else 0.0
+            self.logger.debug(f"No downside - Sortino ratio: {result}")
+            return result
+        
+        downside_std = downside_returns.std()
+        if downside_std == 0:
+            return 0.0
+            
+        # Properly annualize downside deviation based on data frequency
+        annual_downside_deviation = downside_std * np.sqrt(observations_per_year)
+        
+        # Calculate Sortino ratio
+        sortino_ratio = (annual_return - ANNUAL_RISK_FREE_RATE) / annual_downside_deviation
+        
+        self.logger.info(f"Sortino calculation: {time_period_days} days ({time_period_years:.2f} years)")
+        self.logger.info(f"Data frequency: {observations_per_year:.0f} observations/year (√{observations_per_year:.0f} volatility scaling)")
+        self.logger.info(f"Total return: {total_return:.4f} ({total_return*100:.2f}%), Annual return: {annual_return:.4f} ({annual_return*100:.2f}%)")
+        self.logger.info(f"Downside periods: {len(downside_returns)}/{len(returns)}, Annual downside deviation: {annual_downside_deviation:.4f}")
+        self.logger.info(f"Sortino ratio: ({annual_return:.4f} - {ANNUAL_RISK_FREE_RATE:.4f}) / {annual_downside_deviation:.4f} = {sortino_ratio:.4f}")
         return round(sortino_ratio, 2)
 
     def get_formatted_orders(self) -> list[list[str | float]]:
@@ -213,6 +328,62 @@ class TradingPerformanceAnalyzer:
         """
         return ((final_price - initial_price) / initial_price) * 100
 
+    def _calculate_buy_and_hold_metrics(
+        self,
+        data: pd.DataFrame,
+        initial_balance: float,
+        initial_price: float,
+        final_price: float,
+    ) -> dict:
+        """
+        Calculate comprehensive buy-and-hold performance metrics.
+
+        Args:
+            data: Historical data with price information
+            initial_balance: Initial investment amount
+            initial_price: Starting crypto price
+            final_price: Final crypto price
+
+        Returns:
+            Dict with buy-and-hold performance metrics
+        """
+        # Create buy-and-hold portfolio value series
+        if 'close' in data.columns:
+            prices = data['close']
+        else:
+            # Fallback: estimate from account values (less accurate)
+            prices = pd.Series(index=data.index, dtype=float)
+            prices.iloc[0] = initial_price
+            prices.iloc[-1] = final_price
+            # Linear interpolation for missing values
+            prices = prices.interpolate()
+
+        # Calculate buy-and-hold portfolio values
+        crypto_quantity = initial_balance / initial_price
+        bh_portfolio_values = prices * crypto_quantity
+
+        # Create buy-and-hold data frame
+        bh_data = pd.DataFrame({'account_value': bh_portfolio_values}, index=data.index)
+
+        # Calculate all metrics for buy-and-hold
+        bh_total_return = ((final_price / initial_price) - 1) * 100
+        bh_max_drawdown = self._calculate_drawdown(bh_data)
+        bh_max_runup = self._calculate_runup(bh_data)
+        bh_sharpe = self._calculate_sharpe_ratio(bh_data)
+        bh_sortino = self._calculate_sortino_ratio(bh_data)
+        bh_time_in_profit, bh_time_in_loss = self._calculate_time_in_profit_loss(initial_balance, bh_data)
+
+        return {
+            'return': bh_total_return,
+            'max_drawdown': bh_max_drawdown,
+            'max_runup': bh_max_runup,
+            'sharpe_ratio': bh_sharpe,
+            'sortino_ratio': bh_sortino,
+            'time_in_profit': bh_time_in_profit,
+            'time_in_loss': bh_time_in_loss,
+            'final_value': bh_portfolio_values.iloc[-1]
+        }
+
     def generate_performance_summary(
         self,
         data: pd.DataFrame,
@@ -251,6 +422,7 @@ class TradingPerformanceAnalyzer:
         sharpe_ratio = self._calculate_sharpe_ratio(data)
         sortino_ratio = self._calculate_sortino_ratio(data)
         buy_and_hold_return = self._calculate_buy_and_hold_return(data, initial_price, final_crypto_price)
+        buy_and_hold_metrics = self._calculate_buy_and_hold_metrics(data, initial_balance, initial_price, final_crypto_price)
         num_buy_trades, num_sell_trades = self._calculate_trade_counts()
         
         # Get final cumulative profit if available
@@ -263,23 +435,35 @@ class TradingPerformanceAnalyzer:
             "Start Date": start_date,
             "End Date": end_date,
             "Duration": duration,
+            
+            # === GRID TRADING PERFORMANCE ===
             "ROI": f"{roi:.2f}%",
             "Max Drawdown": f"{max_drawdown:.2f}%",
             "Max Runup": f"{max_runup:.2f}%",
             "Time in Profit %": f"{time_in_profit:.2f}%",
             "Time in Loss %": f"{time_in_loss:.2f}%",
-            "Buy and Hold Return %": f"{buy_and_hold_return:.2f}%",
-            "Grid Trading Gains": f"{grid_trading_gains}",
+            "Sharpe Ratio": f"{sharpe_ratio:.2f}",
+            "Sortino Ratio": f"{sortino_ratio:.2f}",
+            
+            # === BUY & HOLD PERFORMANCE ===
+            "Buy and Hold Return %": f"{buy_and_hold_metrics['return']:.2f}%",
+            "Buy and Hold Max Drawdown": f"{buy_and_hold_metrics['max_drawdown']:.2f}%",
+            "Buy and Hold Max Runup": f"{buy_and_hold_metrics['max_runup']:.2f}%",
+            "Buy and Hold Sharpe Ratio": f"{buy_and_hold_metrics['sharpe_ratio']:.2f}",
+            "Buy and Hold Sortino Ratio": f"{buy_and_hold_metrics['sortino_ratio']:.2f}",
+            "Buy and Hold Time in Profit %": f"{buy_and_hold_metrics['time_in_profit']:.2f}%",
+            "Buy and Hold Time in Loss %": f"{buy_and_hold_metrics['time_in_loss']:.2f}%",
+            
+            # === TRADING DETAILS ===
             "Cash from Profit Taking": f"{final_cumulative_profit:.2f} {self.quote_currency}",
+            "Cash Gain from Profit Taking %": f"{(final_cumulative_profit / initial_balance) * 100:.2f}%",
             "Total Fees": f"{total_fees:.2f}",
             "Final Balance (Fiat)": f"{final_balance:.2f}",
             "Final Crypto Balance": f"{final_crypto_balance:.4f} {self.base_currency}",
-            "Final Crypto Value (Fiat)": f"{final_crypto_value:.2f} {self.quote_currency}",
-            "Remaining Fiat Balance": f"{final_fiat_balance:.2f} {self.quote_currency}",
+            "Final Crypto Balance (USDT)": f"{final_crypto_value:.2f} {self.quote_currency}",
+            "Fiat Balance (USDT)": f"{final_fiat_balance:.2f} {self.quote_currency}",
             "Number of Buy Trades": num_buy_trades,
             "Number of Sell Trades": num_sell_trades,
-            "Sharpe Ratio": f"{sharpe_ratio:.2f}",
-            "Sortino Ratio": f"{sortino_ratio:.2f}",
         }
 
         formatted_orders = self.get_formatted_orders()
