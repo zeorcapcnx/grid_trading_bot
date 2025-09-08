@@ -1,38 +1,36 @@
 {
   "exchange": {
     "name": "binance",
-    "trading_fee": 0.0005,
-    "trading_mode": "backtest"
+    "trading_fee": 0.001,
+    "trading_mode": "live"
   },
   "pair": {
-    "base_currency": "BTC",
+    "base_currency": "SOL",
     "quote_currency": "USDT"
   },
   "trading_settings": {
-    "timeframe": "1m",
-    "period": {
-      "start_date": "2024-01-01T09:00:00Z",
-      "end_date": "2024-07-01T23:00:00Z"
-    },
-    "initial_balance": 1000
+    "timeframe": "5m",
+    "initial_balance": 80,
+    "max_position_size": 50
   },
   "grid_strategy": {
     "type": "hedged_grid",
     "spacing": "arithmetic",
     "order_sizing": "equal_dollar",
-    "num_grids": 100,
+    "num_grids": 5,
     "range": {
-      "mode": "crypto_zero"
+      "top": 236,
+      "bottom": 196
     }
   },
   "risk_management": {
     "take_profit": {
-      "enabled": false,
-      "threshold": 270
+      "enabled": true,
+      "threshold": 220
     },
     "stop_loss": {
-      "enabled": false,
-      "threshold": 0
+      "enabled": true,
+      "threshold": 160
     }
   },
   "logging": {
