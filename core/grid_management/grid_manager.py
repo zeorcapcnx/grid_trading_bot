@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from config.config_manager import ConfigManager
+from strategies.order_sizing_type import OrderSizingType
 from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
 
@@ -77,22 +78,32 @@ class GridManager:
     def get_order_size_for_grid_level(
         self,
         total_balance: float,
-        current_price: float,
+        grid_price: float,
     ) -> float:
         """
-        Calculates the order size for a grid level based on the total balance, total grids, and current price.
-
-        The order size is determined by evenly distributing the total balance across all grid levels and adjusting
-        it to reflect the current price.
+        Calculates the order size for a grid level based on the selected order sizing strategy.
 
         Args:
-            current_price: The current price of the trading pair.
+            total_balance: The total balance available for trading.
+            grid_price: The price of the specific grid level.
 
         Returns:
-            The calculated order size as a float.
+            The calculated order size as a float (crypto amount).
         """
+        order_sizing_type = self.config_manager.get_order_sizing_type()
         total_grids = len(self.grid_levels)
-        order_size = total_balance / total_grids / current_price
+        
+        if order_sizing_type == OrderSizingType.EQUAL_DOLLAR:
+            # Equal dollar amount per grid - same dollar value at each grid level
+            dollar_amount_per_grid = total_balance / total_grids
+            order_size = dollar_amount_per_grid / grid_price
+        else:
+            # EQUAL_CRYPTO - same crypto amount at each grid level (current behavior)
+            # This uses central/current price to determine crypto amount, then same amount at all levels
+            central_price = self.central_price
+            crypto_amount_per_grid = (total_balance / total_grids) / central_price
+            order_size = crypto_amount_per_grid
+            
         return order_size
 
     def get_initial_order_quantity(

@@ -45,6 +45,10 @@ class GridTradingStrategy(TradingStrategyInterface):
         self.data = self._initialize_historical_data()
         self.live_trading_metrics = []
         self._running = True
+        self._cumulative_profit = 0.0  # Track cumulative profit from trading pairs
+        self._grid_buy_costs = {}  # Track buy costs per grid level
+        # Subscribe to order fill events to track profit
+        self.event_bus.subscribe(Events.ORDER_FILLED, self._on_order_filled)
 
     def _initialize_historical_data(self) -> pd.DataFrame | None:
         """
@@ -193,6 +197,7 @@ class GridTradingStrategy(TradingStrategyInterface):
 
         self.logger.info("Starting backtest simulation")
         self.data["account_value"] = np.nan
+        self.data["cumulative_profit"] = 0.0  # Initialize cumulative profit column
         self.close_prices = self.data["close"].values
         high_prices = self.data["high"].values
         low_prices = self.data["low"].values
@@ -200,6 +205,7 @@ class GridTradingStrategy(TradingStrategyInterface):
         self.data.loc[timestamps[0], "account_value"] = self.balance_tracker.get_total_balance_value(
             price=self.close_prices[0],
         )
+        self.data.loc[timestamps[0], "cumulative_profit"] = self._cumulative_profit
         grid_orders_initialized = False
         last_price = None
 
@@ -217,6 +223,7 @@ class GridTradingStrategy(TradingStrategyInterface):
                 self.data.loc[timestamps[i], "account_value"] = self.balance_tracker.get_total_balance_value(
                     price=current_price,
                 )
+                self.data.loc[timestamps[i], "cumulative_profit"] = self._cumulative_profit
                 last_price = current_price
                 continue
 
@@ -226,6 +233,7 @@ class GridTradingStrategy(TradingStrategyInterface):
                 break
 
             self.data.loc[timestamp, "account_value"] = self.balance_tracker.get_total_balance_value(current_price)
+            self.data.loc[timestamp, "cumulative_profit"] = self._cumulative_profit
             last_price = current_price
 
     async def _initialize_grid_orders_once(
@@ -337,6 +345,92 @@ class GridTradingStrategy(TradingStrategyInterface):
             return False
 
         return await self._handle_take_profit(current_price) or await self._handle_stop_loss(current_price)
+
+    async def _on_order_filled(self, order) -> None:
+        """
+        Track cumulative profit from grid trading pairs.
+        In grid trading, we only make profit when selling at a higher grid level than we bought.
+        
+        Args:
+            order: The filled order.
+        """
+        from core.order_handling.order import OrderSide
+        
+        # Get the grid level for this order
+        grid_level = self.order_manager.order_book.get_grid_level_for_order(order)
+        if not grid_level:
+            # Non-grid orders (like take-profit/stop-loss) - don't track for grid profit
+            return
+            
+        grid_price = grid_level.price
+        
+        if order.side == OrderSide.BUY:
+            # Track buy cost at this grid level
+            buy_cost = order.filled * order.price
+            buy_fee = order.fee.get("cost", 0.0) if order.fee else 0.0
+            total_buy_cost = buy_cost + buy_fee
+            
+            # Store the cost basis for this grid level
+            if grid_price not in self._grid_buy_costs:
+                self._grid_buy_costs[grid_price] = {'total_cost': 0.0, 'quantity': 0.0}
+            
+            self._grid_buy_costs[grid_price]['total_cost'] += total_buy_cost
+            self._grid_buy_costs[grid_price]['quantity'] += order.filled
+            
+            self.logger.debug(f"Buy tracked at grid ${grid_price:.2f}: {order.filled:.6f} @ ${order.price:.2f} (cost: ${total_buy_cost:.2f})")
+            
+        elif order.side == OrderSide.SELL:
+            # For sells, we need to find which buy level this came from
+            # In grid trading, sells are always at higher levels than their corresponding buys
+            sell_revenue = order.filled * order.price
+            sell_fee = order.fee.get("cost", 0.0) if order.fee else 0.0
+            net_revenue = sell_revenue - sell_fee
+            
+            # Find the corresponding buy level (should be the paired buy level)
+            buy_grid_level = None
+            if hasattr(grid_level, 'paired_buy_level') and grid_level.paired_buy_level:
+                buy_grid_level = grid_level.paired_buy_level
+            else:
+                # Fallback: find the closest lower grid level with buy costs
+                buy_price = None
+                for price in sorted(self._grid_buy_costs.keys(), reverse=True):
+                    if price < grid_price and self._grid_buy_costs[price]['quantity'] > 0:
+                        buy_price = price
+                        break
+                
+                if buy_price:
+                    # Create a mock grid level object for the buy price
+                    class MockGridLevel:
+                        def __init__(self, price):
+                            self.price = price
+                    buy_grid_level = MockGridLevel(buy_price)
+            
+            if buy_grid_level and buy_grid_level.price in self._grid_buy_costs:
+                buy_price = buy_grid_level.price
+                buy_data = self._grid_buy_costs[buy_price]
+                
+                if buy_data['quantity'] >= order.filled:
+                    # Calculate cost basis for this sell quantity
+                    cost_per_unit = buy_data['total_cost'] / buy_data['quantity']
+                    cost_basis = order.filled * cost_per_unit
+                    
+                    # Calculate profit (should always be positive in grid trading)
+                    profit = net_revenue - cost_basis
+                    self._cumulative_profit += profit
+                    
+                    # Update buy data
+                    buy_data['quantity'] -= order.filled
+                    buy_data['total_cost'] -= cost_basis
+                    
+                    # Clean up if quantity becomes zero
+                    if buy_data['quantity'] <= 0.001:  # Small threshold for floating point precision
+                        del self._grid_buy_costs[buy_price]
+                    
+                    self.logger.info(f"Grid profit: ${profit:.2f} (Sell ${grid_price:.2f} - Buy ${buy_price:.2f}). Total: ${self._cumulative_profit:.2f}")
+                else:
+                    self.logger.warning(f"Insufficient buy quantity at grid ${buy_price:.2f} for sell order")
+            else:
+                self.logger.warning(f"No corresponding buy level found for sell at grid ${grid_price:.2f}")
 
     async def _handle_take_profit(self, current_price: float) -> bool:
         """

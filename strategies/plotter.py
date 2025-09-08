@@ -26,13 +26,13 @@ class Plotter:
         self._add_trigger_price_line(fig, trigger_price)
         self._add_grid_lines(fig, self.grid_manager.price_grids, self.grid_manager.central_price)
         self._add_trade_markers(fig, self.order_book.get_completed_orders())
-        self._add_volume_trace(fig, data)
+        self._add_cumulative_profit_trace(fig, data)
         self._add_account_value_trace(fig, data)
 
         fig.update_layout(
             title="Grid Trading Strategy Results",
             yaxis_title="Price (USDT)",
-            yaxis2_title="Volume",
+            yaxis2_title="Cash (USDT)",
             yaxis3_title="Equity",
             xaxis={"rangeslider": {"visible": False}},
             showlegend=False,
@@ -129,28 +129,31 @@ class Plotter:
                 col=1,
             )
 
-    def _add_volume_trace(
+    def _add_cumulative_profit_trace(
         self,
         fig: go.Figure,
         data: pd.DataFrame,
     ) -> None:
-        volume_colors = [
-            "green" if close >= open_ else "red" for close, open_ in zip(data["close"], data["open"], strict=False)
-        ]
+        # Check if cumulative_profit column exists, if not initialize with zeros
+        if "cumulative_profit" not in data.columns:
+            data["cumulative_profit"] = 0.0
 
         fig.add_trace(
-            go.Bar(
+            go.Scatter(
                 x=data.index,
-                y=data["volume"],
-                marker={"color": volume_colors},
+                y=data["cumulative_profit"],
+                mode="lines",
                 name="",
+                line={"color": "orange", "width": 2},
+                fill="tozeroy",
+                fillcolor="rgba(255, 165, 0, 0.3)",
             ),
             row=2,
             col=1,
         )
 
         fig.update_yaxes(
-            title="Volume",
+            title="Cash (USDT)",
             row=2,
             col=1,
         )

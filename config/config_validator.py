@@ -1,5 +1,6 @@
 import logging
 
+from strategies.order_sizing_type import OrderSizingType
 from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
 
@@ -129,6 +130,16 @@ class ConfigValidator:
             except ValueError as e:
                 self.logger.error(str(e))
                 invalid_fields.append("grid_strategy.spacing")
+
+        order_sizing = grid.get("order_sizing")
+        if order_sizing is None:
+            missing_fields.append("grid_strategy.order_sizing")
+        else:
+            try:
+                OrderSizingType.from_string(order_sizing)
+            except ValueError as e:
+                self.logger.error(str(e))
+                invalid_fields.append("grid_strategy.order_sizing")
 
         num_grids = grid.get("num_grids")
         if num_grids is None:

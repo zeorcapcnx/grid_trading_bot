@@ -252,6 +252,11 @@ class TradingPerformanceAnalyzer:
         sortino_ratio = self._calculate_sortino_ratio(data)
         buy_and_hold_return = self._calculate_buy_and_hold_return(data, initial_price, final_crypto_price)
         num_buy_trades, num_sell_trades = self._calculate_trade_counts()
+        
+        # Get final cumulative profit if available
+        final_cumulative_profit = 0.0
+        if "cumulative_profit" in data.columns:
+            final_cumulative_profit = data["cumulative_profit"].iloc[-1] if not data["cumulative_profit"].empty else 0.0
 
         performance_summary = {
             "Pair": pair,
@@ -265,6 +270,7 @@ class TradingPerformanceAnalyzer:
             "Time in Loss %": f"{time_in_loss:.2f}%",
             "Buy and Hold Return %": f"{buy_and_hold_return:.2f}%",
             "Grid Trading Gains": f"{grid_trading_gains}",
+            "Cash from Profit Taking": f"{final_cumulative_profit:.2f} {self.quote_currency}",
             "Total Fees": f"{total_fees:.2f}",
             "Final Balance (Fiat)": f"{final_balance:.2f}",
             "Final Crypto Balance": f"{final_crypto_balance:.4f} {self.base_currency}",

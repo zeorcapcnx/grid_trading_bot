@@ -63,7 +63,7 @@ class OrderManager:
 
             grid_level = self.grid_manager.grid_levels[price]
             total_balance_value = self.balance_tracker.get_total_balance_value(current_price)
-            order_quantity = self.grid_manager.get_order_size_for_grid_level(total_balance_value, current_price)
+            order_quantity = self.grid_manager.get_order_size_for_grid_level(total_balance_value, price)
 
             if self.grid_manager.can_place_order(grid_level, OrderSide.BUY):
                 try:
@@ -118,7 +118,7 @@ class OrderManager:
 
             grid_level = self.grid_manager.grid_levels[price]
             total_balance_value = self.balance_tracker.get_total_balance_value(current_price)
-            order_quantity = self.grid_manager.get_order_size_for_grid_level(total_balance_value, current_price)
+            order_quantity = self.grid_manager.get_order_size_for_grid_level(total_balance_value, price)
 
             if self.grid_manager.can_place_order(grid_level, OrderSide.SELL):
                 try:

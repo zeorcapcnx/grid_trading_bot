@@ -7,6 +7,7 @@ from config.config_manager import ConfigManager
 from core.grid_management.grid_level import GridCycleState, GridLevel
 from core.grid_management.grid_manager import GridManager
 from core.order_handling.order import Order, OrderSide
+from strategies.order_sizing_type import OrderSizingType
 from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
 
@@ -53,13 +54,48 @@ class TestGridManager:
         grid_manager.initialize_grids_and_levels()
         assert grid_manager.get_trigger_price() == grid_manager.central_price
 
-    def test_get_order_size_for_grid_level(self, grid_manager):
+    def test_get_order_size_for_grid_level_equal_crypto(self, grid_manager):
+        """Test equal crypto order sizing (default behavior)"""
         grid_manager.initialize_grids_and_levels()
-        current_price = 2000
-        total_balance = 10000  # Mocked initial balance
-        expected_order_size = total_balance / len(grid_manager.grid_levels) / current_price
-        result = grid_manager.get_order_size_for_grid_level(total_balance, current_price)
-        assert result == expected_order_size
+        grid_price = 2000
+        total_balance = 10000
+        
+        # Mock config to return EQUAL_CRYPTO
+        grid_manager.config_manager.get_order_sizing_type = Mock(return_value=OrderSizingType.EQUAL_CRYPTO)
+        
+        # Equal crypto uses central price to determine crypto amount
+        expected_crypto_amount = (total_balance / len(grid_manager.grid_levels)) / grid_manager.central_price
+        result = grid_manager.get_order_size_for_grid_level(total_balance, grid_price)
+        assert result == expected_crypto_amount
+        
+    def test_get_order_size_for_grid_level_equal_dollar(self, grid_manager):
+        """Test equal dollar order sizing"""
+        grid_manager.initialize_grids_and_levels()
+        grid_price = 2000
+        total_balance = 10000
+        
+        # Mock config to return EQUAL_DOLLAR
+        grid_manager.config_manager.get_order_sizing_type = Mock(return_value=OrderSizingType.EQUAL_DOLLAR)
+        
+        # Equal dollar divides total balance equally across grids
+        expected_dollar_per_grid = total_balance / len(grid_manager.grid_levels)
+        expected_crypto_amount = expected_dollar_per_grid / grid_price
+        result = grid_manager.get_order_size_for_grid_level(total_balance, grid_price)
+        assert result == expected_crypto_amount
+        
+    def test_get_order_size_for_grid_level_default_fallback(self, grid_manager):
+        """Test fallback to equal crypto when order_sizing is None"""
+        grid_manager.initialize_grids_and_levels()
+        grid_price = 2000
+        total_balance = 10000
+        
+        # Mock config to return None (fallback case)
+        grid_manager.config_manager.get_order_sizing_type = Mock(return_value=None)
+        
+        # Should fallback to equal crypto behavior
+        expected_crypto_amount = (total_balance / len(grid_manager.grid_levels)) / grid_manager.central_price
+        result = grid_manager.get_order_size_for_grid_level(total_balance, grid_price)
+        assert result == expected_crypto_amount
 
     def test_get_initial_order_quantity(self, grid_manager):
         current_fiat_balance = 5000  # Half of the total balance

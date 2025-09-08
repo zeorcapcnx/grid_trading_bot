@@ -2,6 +2,7 @@ import json
 import logging
 import os
 
+from strategies.order_sizing_type import OrderSizingType
 from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
 
@@ -107,6 +108,13 @@ class ConfigManager:
 
         if spacing_type:
             return SpacingType.from_string(spacing_type)
+
+    def get_order_sizing_type(self) -> OrderSizingType | None:
+        grid_settings = self.get_grid_settings()
+        order_sizing = grid_settings.get("order_sizing", None)
+
+        if order_sizing:
+            return OrderSizingType.from_string(order_sizing)
 
     def get_num_grids(self):
         grid_settings = self.get_grid_settings()
