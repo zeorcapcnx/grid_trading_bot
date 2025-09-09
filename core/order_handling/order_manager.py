@@ -56,9 +56,18 @@ class OrderManager:
         """
         Places initial buy orders for grid levels below the current price.
         """
+        central_price = self.grid_manager.get_trigger_price()
+        
         for price in self.grid_manager.sorted_buy_grids:
             if price >= current_price:
                 self.logger.info(f"Skipping grid level at price: {price} for BUY order: Above current price.")
+                continue
+            
+            # Skip central price level - we already own crypto at this level
+            # Use relative tolerance: 0.01% of the central price
+            tolerance = central_price * 0.0001  # 0.01%
+            if abs(price - central_price) < tolerance:
+                self.logger.info(f"Skipping central price level at {price} for initial BUY order: Already own crypto at this level.")
                 continue
 
             grid_level = self.grid_manager.grid_levels[price]
@@ -114,6 +123,13 @@ class OrderManager:
                 self.logger.info(
                     f"Skipping grid level at price: {price} for SELL order: Below or equal to current price.",
                 )
+                continue
+            
+            # Skip central price level - we already own crypto at this level
+            # Use relative tolerance: 0.01% of the central price
+            tolerance = central_price * 0.0001  # 0.01%
+            if abs(price - central_price) < tolerance:
+                self.logger.info(f"Skipping central price level at {price} for initial SELL order: Already own crypto at this level.")
                 continue
 
             grid_level = self.grid_manager.grid_levels[price]

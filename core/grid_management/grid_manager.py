@@ -387,22 +387,53 @@ class GridManager:
         bottom_range, top_range, num_grids, spacing_type = self._extract_grid_config(first_price)
 
         if spacing_type == SpacingType.ARITHMETIC:
-            grids = np.linspace(bottom_range, top_range, num_grids)
-            central_price = (top_range + bottom_range) / 2
+            # For even number of grids, add +1 to make it odd
+            actual_num_grids = num_grids + 1 if num_grids % 2 == 0 else num_grids
+            all_grids = np.linspace(bottom_range, top_range, actual_num_grids)
+            
+            if num_grids % 2 == 0:
+                # Store central price
+                central_index = len(all_grids) // 2
+                central_price = all_grids[central_index]
+                
+                # For HEDGED_GRID strategy, keep central price in grid levels
+                if self.strategy_type == StrategyType.HEDGED_GRID:
+                    grids = all_grids  # Keep all grids including central price
+                else:
+                    # For SIMPLE_GRID, remove the middle grid to get back to original count
+                    grids = np.concatenate([all_grids[:central_index], all_grids[central_index+1:]])
+            else:
+                # Odd grids: central price is the middle grid
+                grids = all_grids
+                central_index = len(grids) // 2
+                central_price = grids[central_index]
 
         elif spacing_type == SpacingType.GEOMETRIC:
-            grids = []
-            ratio = (top_range / bottom_range) ** (1 / (num_grids - 1))
+            # For even number of grids, add +1 to make it odd
+            actual_num_grids = num_grids + 1 if num_grids % 2 == 0 else num_grids
+            all_grids = []
+            ratio = (top_range / bottom_range) ** (1 / (actual_num_grids - 1))
             current_price = bottom_range
 
-            for _ in range(num_grids):
-                grids.append(current_price)
+            for _ in range(actual_num_grids):
+                all_grids.append(current_price)
                 current_price *= ratio
 
-            central_index = len(grids) // 2
             if num_grids % 2 == 0:
-                central_price = (grids[central_index - 1] + grids[central_index]) / 2
+                # Store central price
+                central_index = len(all_grids) // 2
+                central_price = all_grids[central_index]
+                
+                # For HEDGED_GRID strategy, keep central price in grid levels
+                if self.strategy_type == StrategyType.HEDGED_GRID:
+                    grids = all_grids  # Keep all grids including central price
+                else:
+                    # For SIMPLE_GRID, remove the middle grid to get back to original count
+                    grids = all_grids[:central_index] + all_grids[central_index+1:]
             else:
+                # Odd grids: central price is the middle grid
+                grids = all_grids
+                central_index = len(grids) // 2
                 central_price = grids[central_index]
 
         else:

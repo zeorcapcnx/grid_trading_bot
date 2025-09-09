@@ -47,6 +47,8 @@ class GridTradingStrategy(TradingStrategyInterface):
         self._running = True
         self._cumulative_profit = 0.0  # Track cumulative profit from trading pairs
         self._grid_buy_costs = {}  # Track buy costs per grid level
+        self._initial_purchase_cost = None  # Track initial purchase cost basis
+        self._initial_purchase_quantity = None  # Track initial purchase quantity
         # Subscribe to order fill events to track profit
         self.event_bus.subscribe(Events.ORDER_FILLED, self._on_order_filled)
 
@@ -364,7 +366,14 @@ class GridTradingStrategy(TradingStrategyInterface):
         # Get the grid level for this order
         grid_level = self.order_manager.order_book.get_grid_level_for_order(order)
         if not grid_level:
-            # Non-grid orders (like take-profit/stop-loss) - don't track for grid profit
+            # Check if this is the initial purchase order (market order without grid level)
+            if order.side == OrderSide.BUY and order.type.name == 'MARKET':
+                # Track initial purchase cost
+                buy_cost = order.filled * order.price
+                buy_fee = order.fee.get("cost", 0.0) if order.fee else 0.0
+                self._initial_purchase_cost = buy_cost + buy_fee
+                self._initial_purchase_quantity = order.filled
+                self.logger.debug(f"Initial purchase tracked: {order.filled:.6f} @ ${order.price:.2f} (cost: ${self._initial_purchase_cost:.2f})")
             return
             
         grid_price = grid_level.price
@@ -435,7 +444,28 @@ class GridTradingStrategy(TradingStrategyInterface):
                 else:
                     self.logger.warning(f"Insufficient buy quantity at grid ${buy_price:.2f} for sell order")
             else:
-                self.logger.warning(f"No corresponding buy level found for sell at grid ${grid_price:.2f}")
+                # Try to use initial purchase cost as fallback
+                if self._initial_purchase_cost and self._initial_purchase_quantity and self._initial_purchase_quantity >= order.filled:
+                    # Calculate cost basis from initial purchase
+                    cost_per_unit = self._initial_purchase_cost / self._initial_purchase_quantity
+                    cost_basis = order.filled * cost_per_unit
+                    
+                    # Calculate profit from initial purchase
+                    profit = net_revenue - cost_basis
+                    self._cumulative_profit += profit
+                    
+                    # Update initial purchase data
+                    self._initial_purchase_quantity -= order.filled
+                    self._initial_purchase_cost -= cost_basis
+                    
+                    # Clean up if quantity becomes zero
+                    if self._initial_purchase_quantity <= 0.001:
+                        self._initial_purchase_cost = None
+                        self._initial_purchase_quantity = None
+                    
+                    self.logger.info(f"Grid profit from initial purchase: ${profit:.2f} (Sell ${grid_price:.2f} - Initial buy). Total: ${self._cumulative_profit:.2f}")
+                else:
+                    self.logger.warning(f"No corresponding buy level found for sell at grid ${grid_price:.2f}")
 
     async def _handle_take_profit(self, current_price: float) -> bool:
         """
