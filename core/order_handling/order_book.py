@@ -43,7 +43,17 @@ class OrderBook:
         return [order for order in self.buy_orders + self.sell_orders if order.is_filled()]
 
     def get_grid_level_for_order(self, order: Order) -> GridLevel | None:
-        return self.order_to_grid_map.get(order)
+        # Try to find grid level by order object first, then by order ID as fallback
+        grid_level = self.order_to_grid_map.get(order)
+        if grid_level:
+            return grid_level
+        
+        # Fallback: search by order ID in case order object changed
+        for stored_order, stored_grid_level in self.order_to_grid_map.items():
+            if stored_order.identifier == order.identifier:
+                return stored_grid_level
+        
+        return None
 
     def update_order_status(
         self,

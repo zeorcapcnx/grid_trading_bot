@@ -361,13 +361,13 @@ class GridTradingStrategy(TradingStrategyInterface):
         Args:
             order: The filled order.
         """
-        from core.order_handling.order import OrderSide
+        from core.order_handling.order import OrderSide, OrderType
         
         # Get the grid level for this order
         grid_level = self.order_manager.order_book.get_grid_level_for_order(order)
         if not grid_level:
             # Check if this is the initial purchase order (market order without grid level)
-            if order.side == OrderSide.BUY and order.type.name == 'MARKET':
+            if order.side == OrderSide.BUY and order.order_type == OrderType.MARKET:
                 # Track initial purchase cost
                 buy_cost = order.filled * order.price
                 buy_fee = order.fee.get("cost", 0.0) if order.fee else 0.0
