@@ -139,6 +139,9 @@ class GridTradingBot:
 
             if not self.no_plot:
                 self.strategy.plot_results()
+                # Also show equity curve comparison for backtest mode
+                if hasattr(self.strategy, 'plot_equity_curve_comparison'):
+                    self.strategy.plot_equity_curve_comparison()
 
             return self._generate_and_log_performance()
 

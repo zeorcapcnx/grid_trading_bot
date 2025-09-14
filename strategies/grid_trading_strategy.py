@@ -330,6 +330,24 @@ class GridTradingStrategy(TradingStrategyInterface):
         else:
             self.logger.info("Plotting is not available for live/paper trading mode.")
 
+    def plot_equity_curve_comparison(self) -> None:
+        """
+        Plots a comparison between grid trading and buy-and-hold equity curves.
+
+        This method generates and displays a comparison chart showing the
+        performance of the grid trading strategy versus a simple buy-and-hold
+        approach over the same time period.
+        """
+        if self.trading_mode == TradingMode.BACKTEST:
+            if self.data is not None and len(self.data) > 0:
+                initial_price = self.close_prices[0]
+                final_price = self.close_prices[-1]
+                self.plotter.plot_equity_curve_comparison(self.data, initial_price, final_price)
+            else:
+                self.logger.error("No data available for equity curve comparison.")
+        else:
+            self.logger.info("Equity curve comparison is only available for backtest mode.")
+
     async def _handle_take_profit_stop_loss(self, current_price: float) -> bool:
         """
         Handles take-profit or stop-loss events based on the current price.

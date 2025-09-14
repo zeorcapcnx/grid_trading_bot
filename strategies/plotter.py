@@ -174,3 +174,108 @@ class Plotter:
             row=3,
             col=1,
         )
+
+    def plot_equity_curve_comparison(
+        self,
+        data: pd.DataFrame,
+        initial_price: float,
+        final_price: float,
+    ) -> None:
+        """
+        Plot comparison of equity curves between grid trading strategy and buy-and-hold.
+
+        Args:
+            data: DataFrame with columns 'account_value', 'close', and index as timestamps
+            initial_price: Initial cryptocurrency price
+            final_price: Final cryptocurrency price
+        """
+        # Calculate buy-and-hold equity curve
+        initial_balance = data["account_value"].iloc[0]
+
+        if 'close' in data.columns:
+            prices = data['close']
+        else:
+            # Fallback: create price series from initial and final prices
+            prices = pd.Series(index=data.index, dtype=float)
+            prices.iloc[0] = initial_price
+            prices.iloc[-1] = final_price
+            prices = prices.interpolate()
+
+        # Calculate buy-and-hold portfolio values
+        crypto_quantity = initial_balance / initial_price
+        buy_hold_values = prices * crypto_quantity
+
+        # Create the comparison plot
+        fig = go.Figure()
+
+        # Add grid trading equity curve
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=data["account_value"],
+                mode="lines",
+                name="Grid Trading",
+                line={"color": "blue", "width": 2},
+            )
+        )
+
+        # Add buy-and-hold equity curve
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=buy_hold_values,
+                mode="lines",
+                name="Buy & Hold",
+                line={"color": "red", "width": 2, "dash": "dash"},
+            )
+        )
+
+        # Calculate performance metrics for display
+        grid_final_value = data["account_value"].iloc[-1]
+        bh_final_value = buy_hold_values.iloc[-1]
+
+        grid_return = ((grid_final_value / initial_balance) - 1) * 100
+        bh_return = ((bh_final_value / initial_balance) - 1) * 100
+
+        # Update layout with performance info
+        fig.update_layout(
+            title=f"Equity Curve Comparison<br>" +
+                  f"<sub>Grid Trading: {grid_return:.2f}% | Buy & Hold: {bh_return:.2f}%</sub>",
+            xaxis_title="Date",
+            yaxis_title="Portfolio Value (USDT)",
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            ),
+            hovermode='x unified',
+            template="plotly_white"
+        )
+
+        # Add annotations for final values
+        fig.add_annotation(
+            x=data.index[-1],
+            y=grid_final_value,
+            text=f"Grid: ${grid_final_value:.2f}",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor="blue",
+            ax=20,
+            ay=-20,
+            font={"color": "blue"}
+        )
+
+        fig.add_annotation(
+            x=data.index[-1],
+            y=bh_final_value,
+            text=f"B&H: ${bh_final_value:.2f}",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor="red",
+            ax=20,
+            ay=20,
+            font={"color": "red"}
+        )
+
+        fig.show()
