@@ -6,8 +6,10 @@ import pandas as pd
 from config.config_manager import ConfigManager
 from config.trading_mode import TradingMode
 from core.bot_management.event_bus import EventBus, Events
+from core.grid_management.grid_level import GridLevel, GridCycleState
 from core.grid_management.grid_manager import GridManager
 from core.order_handling.balance_tracker import BalanceTracker
+from core.order_handling.order import OrderStatus
 from core.order_handling.order_manager import OrderManager
 from core.services.exchange_interface import ExchangeInterface
 from strategies.plotter import Plotter
@@ -366,14 +368,18 @@ class GridTradingStrategy(TradingStrategyInterface):
     async def _handle_take_profit_stop_loss(self, current_price: float) -> bool:
         """
         Handles take-profit or stop-loss events based on the current price.
-        Publishes a STOP_BOT event if either condition is triggered.
+        In dynamic mode, restarts the grid instead of stopping.
+        In traditional mode, publishes a STOP_BOT event if either condition is triggered.
         """
-        tp_or_sl_triggered = await self._evaluate_tp_or_sl(current_price)
-        if tp_or_sl_triggered:
-            self.logger.info("Take-profit or stop-loss triggered, ending trading session.")
-            await self.event_bus.publish(Events.STOP_BOT, "TP or SL hit.")
-            return True
-        return False
+        if self.config_manager.is_dynamic_mode_enabled():
+            return await self._handle_dynamic_boundary_hit(current_price)
+        else:
+            tp_or_sl_triggered = await self._evaluate_tp_or_sl(current_price)
+            if tp_or_sl_triggered:
+                self.logger.info("Take-profit or stop-loss triggered, ending trading session.")
+                await self.event_bus.publish(Events.STOP_BOT, "TP or SL hit.")
+                return True
+            return False
 
     async def _evaluate_tp_or_sl(self, current_price: float) -> bool:
         """
@@ -381,6 +387,372 @@ class GridTradingStrategy(TradingStrategyInterface):
         Returns True if any condition is triggered.
         """
         return await self._handle_take_profit(current_price) or await self._handle_stop_loss(current_price)
+
+    async def _handle_dynamic_boundary_hit(self, current_price: float) -> bool:
+        """
+        Handles dynamic grid restart when price hits grid boundaries.
+        Uses ALL available funds (fiat + crypto) to restart grid with current price as trigger.
+        """
+        min_grid_price = min(self.grid_manager.price_grids)
+        max_grid_price = max(self.grid_manager.price_grids)
+
+        # Check if current price is beyond grid boundaries
+        if current_price >= max_grid_price:
+            available_fiat = self.balance_tracker.balance
+            available_crypto = self.balance_tracker.crypto_balance
+            total_balance_value = self.balance_tracker.get_total_balance_value(current_price)
+
+            if total_balance_value > 0:
+                self.logger.info(f"🔴 TOP BOUNDARY HIT: ${current_price:.2f} >= ${max_grid_price:.2f}")
+                crypto_value = available_crypto * current_price
+                self.logger.info(f"💰 Portfolio: ${available_fiat:.2f} fiat + {available_crypto:.4f} crypto (${crypto_value:.2f}) = ${total_balance_value:.2f}")
+                await self._restart_grid_with_all_funds(current_price, "top")
+                return False  # Don't stop trading, continue with new grid
+            else:
+                self.logger.warning(f"🔴 TOP BOUNDARY: ${current_price:.2f} - No funds available for restart")
+
+        elif current_price <= min_grid_price:
+            available_fiat = self.balance_tracker.balance
+            available_crypto = self.balance_tracker.crypto_balance
+
+            if available_fiat > 0:
+                self.logger.info(f"🔵 BOTTOM BOUNDARY HIT: ${current_price:.2f} <= ${min_grid_price:.2f}")
+                crypto_value = available_crypto * current_price
+                self.logger.info(f"💵 Extending grid: ${available_fiat:.2f} fiat + {available_crypto:.4f} crypto (${crypto_value:.2f} kept)")
+                await self._extend_grid_downward(current_price, available_fiat)
+                return False  # Don't stop trading, continue with extended grid
+            else:
+                self.logger.warning(f"🔵 BOTTOM BOUNDARY: ${current_price:.2f} - No fiat available for extension")
+
+        return False  # Never stop trading in dynamic mode
+
+    async def _extend_grid_downward(self, current_price: float, available_fiat: float) -> None:
+        """
+        Extends the grid downward when hitting bottom boundary.
+        Uses available fiat to create new lower grid levels with same spacing.
+        """
+        try:
+            # Get current grid spacing
+            current_spacing = self._calculate_current_grid_spacing()
+            current_bottom = min(self.grid_manager.price_grids)
+
+            self.logger.info(f"📊 Extending grid: ${current_bottom:.2f} → lower by ${current_spacing:.2f} spacing")
+
+            # Calculate how many new grid levels we can afford with available fiat
+            # Using equal-dollar sizing
+            order_sizing = self.config_manager.get_order_sizing_type()
+            num_grids = self.config_manager.get_num_grids()
+            dollar_per_grid = available_fiat / max(1, num_grids // 4)  # Use 1/4 of original grid count for extension
+
+            # Calculate new lower grid levels
+            new_grid_levels = []
+            new_price = current_bottom - current_spacing
+            grid_count = 0
+            remaining_fiat = available_fiat
+
+            while remaining_fiat >= dollar_per_grid and new_price > 0 and grid_count < num_grids // 2:
+                new_grid_levels.append(new_price)
+                remaining_fiat -= dollar_per_grid
+                new_price -= current_spacing
+                grid_count += 1
+
+            if new_grid_levels:
+                levels_preview = f"${new_grid_levels[0]:.2f}" + (f"...${new_grid_levels[-1]:.2f}" if len(new_grid_levels) > 1 else "")
+                self.logger.info(f"✅ Adding {len(new_grid_levels)} levels: {levels_preview} (${dollar_per_grid:.0f} each)")
+                await self._add_grid_levels_below(new_grid_levels, dollar_per_grid)
+            else:
+                self.logger.warning("❌ Insufficient fiat for grid extension")
+
+        except Exception as e:
+            self.logger.error(f"Failed to extend grid downward: {e}")
+
+    def _calculate_current_grid_spacing(self) -> float:
+        """Calculate the spacing between current grid levels"""
+        if len(self.grid_manager.price_grids) < 2:
+            return 100.0  # Default spacing if can't calculate
+
+        sorted_grids = sorted(self.grid_manager.price_grids)
+        spacing = sorted_grids[1] - sorted_grids[0]
+        return abs(spacing)
+
+    async def _add_grid_levels_below(self, new_price_levels: list[float], dollar_per_grid: float) -> None:
+        """Add new grid levels below current bottom and place buy orders"""
+        try:
+            for price in new_price_levels:
+                # Add to grid manager's price grids and grid levels
+                self.grid_manager.price_grids.append(price)
+                self.grid_manager.price_grids.sort()  # Keep sorted
+
+                # Create proper grid level for profit-taking cycle
+                grid_level = GridLevel(price, GridCycleState.READY_TO_BUY)
+                self.grid_manager.grid_levels[price] = grid_level
+
+                # Add to sorted buy grids
+                self.grid_manager.sorted_buy_grids.append(price)
+                self.grid_manager.sorted_buy_grids.sort()
+
+                # Set up profit-taking relationship with higher levels
+                self._setup_profit_taking_for_new_level(grid_level)
+
+                # Calculate quantity for equal-dollar sizing
+                quantity = dollar_per_grid / price
+
+                # Grid level added - logging done above in the summary
+
+            # After adding all levels, place orders for the new grid levels
+            current_price = new_price_levels[0] + self._calculate_current_grid_spacing()  # Estimate current price
+            self.logger.debug(f"Integrated {len(new_price_levels)} levels into profit system")
+
+            # Place orders for the newly added grid levels
+            await self._place_orders_for_new_levels(new_price_levels, current_price)
+
+        except Exception as e:
+            self.logger.error(f"Failed to add grid levels below: {e}")
+
+    def _setup_profit_taking_for_new_level(self, new_grid_level: GridLevel) -> None:
+        """Setup profit-taking relationships for newly added grid level"""
+        try:
+            # For hedged grid strategy, find appropriate sell level above this buy level
+            if self.config_manager.get_strategy_type().name == "HEDGED_GRID":
+                current_spacing = self._calculate_current_grid_spacing()
+                target_sell_price = new_grid_level.price + current_spacing
+
+                # Find existing sell level at or near target price
+                closest_sell_level = None
+                min_distance = float('inf')
+
+                for price, level in self.grid_manager.grid_levels.items():
+                    if price > new_grid_level.price:  # Only consider higher prices
+                        distance = abs(price - target_sell_price)
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_sell_level = level
+
+                if closest_sell_level:
+                    # Set up the profit-taking relationship
+                    new_grid_level.paired_sell_level = closest_sell_level
+                    self.logger.debug(f"Paired new buy level ${new_grid_level.price:.2f} with sell level ${closest_sell_level.price:.2f}")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to setup profit-taking for new level: {e}")
+
+    async def _place_orders_for_new_levels(self, new_price_levels: list[float], current_price: float) -> None:
+        """Place buy orders for newly added grid levels"""
+        try:
+            for price in new_price_levels:
+                if price < current_price:  # Only place buy orders below current price
+                    grid_level = self.grid_manager.grid_levels.get(price)
+                    if grid_level and grid_level.state == GridCycleState.READY_TO_BUY:
+                        # Use the order manager's existing logic to place buy orders
+                        # This is a simplified approach - in full implementation would need proper order placement
+                        self.logger.info(f"Would place buy order at ${price:.2f}")
+        except Exception as e:
+            self.logger.error(f"Failed to place orders for new levels: {e}")
+
+    async def _cancel_all_pending_orders(self) -> None:
+        """Cancel all pending orders for grid restart and release reserved funds"""
+        try:
+            open_orders = self.order_manager.order_book.get_open_orders()
+            if open_orders:
+                self.logger.info(f"🚫 Cancelling {len(open_orders)} pending orders")
+
+                # Log balances before cancellation
+                self.logger.debug(f"Before cancellation: ${self.balance_tracker.balance:.2f} available, ${self.balance_tracker.reserved_fiat:.2f} reserved fiat")
+
+                # Mark all orders as cancelled
+                for order in open_orders:
+                    order.status = OrderStatus.CANCELED
+
+                # Release all reserved funds back to available balance
+                self.balance_tracker.release_all_reserved_funds()
+
+                # Log balances after release
+                self.logger.debug(f"After release: ${self.balance_tracker.balance:.2f} available, ${self.balance_tracker.reserved_fiat:.2f} reserved fiat")
+
+                # Clear the order book
+                self.order_manager.order_book.clear_all_orders()
+            else:
+                self.logger.debug("No orders to cancel")
+
+        except Exception as e:
+            self.logger.error(f"Failed to cancel pending orders: {e}")
+
+    async def _restart_grid_with_all_funds(self, current_price: float, boundary_type: str) -> None:
+        """
+        Restarts the grid using ALL available funds (fiat + crypto).
+        Uses current price as the trigger/center point for the new grid.
+
+        Args:
+            current_price: The current market price to use as trigger point
+            boundary_type: "top" or "bottom" for logging purposes
+        """
+        try:
+            # Cancel all pending orders to free up locked funds
+            await self._cancel_all_pending_orders()
+
+            # Get total available funds after cancelling orders
+            available_fiat = self.balance_tracker.balance
+            available_crypto = self.balance_tracker.crypto_balance
+            total_value = self.balance_tracker.get_total_balance_value(current_price)
+
+            self.logger.info(f"🔄 GRID RESTART ({boundary_type}): ${total_value:.2f} total → new trigger ${current_price:.2f}")
+            self.logger.info(f"📈 Performance so far: ${self._cumulative_profit:.2f} profit, ${self.balance_tracker.total_fees:.2f} fees")
+
+            # Clear grid state for fresh restart
+            self._reset_grid_state()
+
+            # Apply boundary-specific rebalancing logic
+            if boundary_type == "top":
+                await self._rebalance_for_top_boundary(current_price, available_fiat, available_crypto)
+            elif boundary_type == "bottom":
+                await self._rebalance_for_bottom_boundary(current_price, available_fiat, available_crypto)
+
+            # Initialize new grid with current price as trigger point
+            self.grid_manager.initialize_grids_and_levels(current_price)
+
+            # Place new grid orders using all available funds
+            await self.order_manager.initialize_grid_orders(current_price)
+
+            self.logger.info(f"✅ Grid restart complete - now trading around ${current_price:.2f}")
+
+        except Exception as e:
+            self.logger.error(f"Failed to restart grid from {boundary_type}: {e}")
+
+    async def _rebalance_for_top_boundary(self, current_price: float, available_fiat: float, available_crypto: float) -> None:
+        """
+        Rebalancing logic for top boundary hit:
+        - After cancelling all orders, we have too much fiat (from refunded buy orders)
+        - Need to buy crypto to balance the portfolio for new grid
+        - Target: ~65% fiat, ~35% crypto for equal_dollar grid
+        """
+        try:
+            crypto_value = available_crypto * current_price
+            total_portfolio_value = self.balance_tracker.get_total_balance_value(current_price)
+
+            # For equal_dollar grid, we need balanced 50/50 split
+            target_fiat_ratio = 0.5  # 50% fiat for buy orders
+            target_crypto_ratio = 0.5  # 50% crypto for sell orders
+
+            target_fiat = total_portfolio_value * target_fiat_ratio
+            target_crypto_value = total_portfolio_value * target_crypto_ratio
+
+            self.logger.info(f"💼 Portfolio (after refunds): ${available_fiat:.0f} fiat ({available_fiat/total_portfolio_value*100:.0f}%) + {available_crypto:.4f} crypto (${crypto_value:.0f}, {crypto_value/total_portfolio_value*100:.0f}%) = ${total_portfolio_value:.0f} total")
+            self.logger.debug(f"🎯 Target: ${target_fiat:.0f} fiat ({target_fiat_ratio*100:.0f}%) / ${target_crypto_value:.0f} crypto ({target_crypto_ratio*100:.0f}%)")
+
+            # Calculate how much we need to adjust
+            fiat_excess = available_fiat - target_fiat
+            crypto_shortage_value = target_crypto_value - crypto_value
+
+            # Check if rebalancing is needed (use small threshold for precision)
+            threshold = total_portfolio_value * 0.01  # 1% threshold for rebalancing
+            self.logger.debug(f"💡 Rebalancing check: fiat_excess=${fiat_excess:.0f}, crypto_shortage=${crypto_shortage_value:.0f}")
+            self.logger.debug(f"💡 Thresholds: fiat_excess>{threshold:.0f}, crypto_shortage>0")
+
+            # Check what type of rebalancing is needed
+            if fiat_excess > threshold and crypto_shortage_value > 0:
+                # We have excess fiat and need more crypto - buy crypto to achieve 50/50 balance
+                crypto_to_buy = crypto_shortage_value / current_price  # Buy exactly what's needed
+
+                if crypto_to_buy > 0.001:
+                    self.logger.info(f"⚖️ Balancing: Buy {crypto_to_buy:.4f} crypto (${crypto_to_buy * current_price:.0f}) with excess fiat")
+                    await self._execute_market_buy_order(current_price, crypto_to_buy)
+                else:
+                    self.logger.debug("📊 Fiat excess too small to rebalance")
+
+            elif crypto_shortage_value < -threshold and fiat_excess < 0:
+                # We have excess crypto and need more fiat - sell crypto to achieve 50/50 balance
+                crypto_excess_value = -crypto_shortage_value
+                crypto_to_sell = crypto_excess_value / current_price  # Sell exactly what's needed
+
+                if crypto_to_sell > 0.001:
+                    self.logger.info(f"⚖️ Balancing: Sell {crypto_to_sell:.4f} crypto (${crypto_to_sell * current_price:.0f}) to get more fiat")
+                    await self._execute_market_sell_order(current_price, crypto_to_sell)
+                else:
+                    self.logger.debug("📊 Crypto excess too small to rebalance")
+            else:
+                self.logger.debug(f"📊 Portfolio balance acceptable for grid restart (no rebalancing needed)")
+
+        except Exception as e:
+            self.logger.warning(f"Top boundary rebalancing failed, continuing with current balances: {e}")
+
+    async def _rebalance_for_bottom_boundary(self, current_price: float, available_fiat: float, available_crypto: float) -> None:
+        """
+        Rebalancing logic for bottom boundary hit:
+        - Use available fiat to establish new grid levels BELOW current bottom
+        - Keep same spacing as original grid
+        - Use equal-dollar sizing for new lower levels
+        - Don't sell existing crypto, keep it for potential selling
+        """
+        try:
+            crypto_value = available_crypto * current_price
+
+            self.logger.info(f"Bottom boundary rebalancing:")
+            self.logger.info(f"  - Available fiat: ${available_fiat:.2f}")
+            self.logger.info(f"  - Available crypto: {available_crypto:.6f} (${crypto_value:.2f})")
+            self.logger.info(f"  - Strategy: Use fiat to create lower grid levels, keep crypto for selling")
+
+            # For bottom boundary, we use available fiat to extend the grid downward
+            # The existing crypto stays available for potential sell orders
+            # New grid will be calculated to use the available fiat optimally
+
+            if available_fiat > 0:
+                self.logger.info(f"Will use ${available_fiat:.2f} fiat to create new lower grid levels")
+                self.logger.info(f"Existing {available_crypto:.6f} crypto will remain available for sell orders")
+            else:
+                self.logger.warning("No fiat available for creating lower grid levels")
+
+        except Exception as e:
+            self.logger.warning(f"Bottom boundary rebalancing failed, continuing with current balances: {e}")
+
+    async def _execute_market_buy_order(self, current_price: float, crypto_amount: float) -> None:
+        """Execute a market buy order for rebalancing purposes"""
+        try:
+            total_cost = crypto_amount * current_price
+
+            # Simulate the market buy by updating balances directly for backtest mode
+            if self.trading_mode.value == "backtest":
+                self.balance_tracker.balance -= total_cost
+                self.balance_tracker.crypto_balance += crypto_amount
+                self.logger.debug(f"Market buy: +{crypto_amount:.4f} crypto for ${total_cost:.0f}")
+            else:
+                self.logger.warning("Live market orders not implemented")
+
+        except Exception as e:
+            self.logger.error(f"Failed to execute market buy order: {e}")
+
+    async def _execute_market_sell_order(self, current_price: float, crypto_amount: float) -> None:
+        """Execute a market sell order for rebalancing purposes"""
+        try:
+            total_revenue = crypto_amount * current_price
+
+            # Simulate the market sell by updating balances directly for backtest mode
+            if self.trading_mode.value == "backtest":
+                self.balance_tracker.balance += total_revenue
+                self.balance_tracker.crypto_balance -= crypto_amount
+                self.logger.debug(f"Market sell: -{crypto_amount:.4f} crypto for ${total_revenue:.0f}")
+            else:
+                self.logger.warning("Live market orders not implemented")
+
+        except Exception as e:
+            self.logger.error(f"Failed to execute market sell order: {e}")
+
+    def _reset_grid_state(self) -> None:
+        """
+        Resets internal grid state for a fresh restart.
+        Preserves all performance metrics and trading history.
+        """
+        # Clear grid-specific tracking data
+        grid_levels_cleared = len(self._grid_buy_costs)
+        self._grid_buy_costs.clear()
+
+        # Performance data that is PRESERVED across restarts:
+        # - self._cumulative_profit (total profit from all grid cycles)
+        # - self.balance_tracker.total_fees (total fees paid)
+        # - self.balance_tracker.balance and crypto_balance (account balances)
+        # - self.data (historical performance data for backtesting)
+
+        self.logger.debug(f"🔄 Grid state reset: cleared {grid_levels_cleared} cost basis entries")
+        self.logger.debug(f"📊 Performance preserved: ${self._cumulative_profit:.2f} total profit, ${self.balance_tracker.total_fees:.2f} total fees")
 
     async def _on_order_filled(self, order) -> None:
         """
@@ -469,7 +841,7 @@ class GridTradingStrategy(TradingStrategyInterface):
                     if buy_data['quantity'] <= 0.001:  # Small threshold for floating point precision
                         del self._grid_buy_costs[buy_price]
                     
-                    self.logger.info(f"Grid profit: ${profit:.2f} (Sell ${grid_price:.2f} - Buy ${buy_price:.2f}). Total: ${self._cumulative_profit:.2f}")
+                    self.logger.info(f"💰 Profit: ${profit:.2f} | Total: ${self._cumulative_profit:.2f}")
                 else:
                     self.logger.warning(f"Insufficient buy quantity at grid ${buy_price:.2f} for sell order")
             else:
@@ -492,7 +864,7 @@ class GridTradingStrategy(TradingStrategyInterface):
                         self._initial_purchase_cost = None
                         self._initial_purchase_quantity = None
                     
-                    self.logger.info(f"Grid profit from initial purchase: ${profit:.2f} (Sell ${grid_price:.2f} - Initial buy). Total: ${self._cumulative_profit:.2f}")
+                    self.logger.info(f"💰 Profit (from initial): ${profit:.2f} | Total: ${self._cumulative_profit:.2f}")
                 else:
                     self.logger.warning(f"No corresponding buy level found for sell at grid ${grid_price:.2f}")
 

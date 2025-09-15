@@ -23,7 +23,9 @@ def setup_logging(
     handlers = []
 
     console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    # Cleaner console format with shorter timestamp and component names
+    console_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    console_handler.setFormatter(logging.Formatter(console_format, datefmt="%H:%M:%S"))
     handlers.append(console_handler)
     log_file_path = ""
 

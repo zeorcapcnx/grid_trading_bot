@@ -15,6 +15,7 @@ from ..order_handling.balance_tracker import BalanceTracker
 from ..order_handling.order_book import OrderBook
 from ..validation.order_validator import OrderValidator
 from .exceptions import OrderExecutionFailedError
+from ..validation.exceptions import InsufficientBalanceError, InsufficientCryptoBalanceError
 from .execution_strategy.order_execution_strategy_interface import (
     OrderExecutionStrategyInterface,
 )
@@ -101,6 +102,11 @@ class OrderManager:
                     self.grid_manager.mark_order_pending(grid_level, order)
                     self.order_book.add_order(order, grid_level)
 
+                except InsufficientBalanceError as e:
+                    self.logger.warning(f"💰 Insufficient fiat balance for buy order at grid level {price}: {e}")
+                    # Skip this grid level and continue with the next one
+                    continue
+
                 except OrderExecutionFailedError as e:
                     self.logger.error(f"Failed to initialize buy order at grid level {price} - {e!s}", exc_info=True)
                     await self.notification_handler.async_send_notification(
@@ -161,6 +167,11 @@ class OrderManager:
                     self.balance_tracker.reserve_funds_for_sell(adjusted_sell_order_quantity)
                     self.grid_manager.mark_order_pending(grid_level, order)
                     self.order_book.add_order(order, grid_level)
+
+                except InsufficientCryptoBalanceError as e:
+                    self.logger.warning(f"💰 Insufficient crypto balance for sell order at grid level {price}: {e}")
+                    # Skip this grid level and continue with the next one
+                    continue
 
                 except OrderExecutionFailedError as e:
                     self.logger.error(f"Failed to initialize sell order at grid level {price} - {e!s}", exc_info=True)

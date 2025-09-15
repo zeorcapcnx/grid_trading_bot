@@ -259,3 +259,22 @@ class BalanceTracker:
             float: The total account value in fiat terms.
         """
         return self.get_adjusted_fiat_balance() + self.get_adjusted_crypto_balance() * price
+
+    def release_all_reserved_funds(self) -> None:
+        """
+        Releases all reserved funds back to available balance.
+        Used when cancelling all pending orders.
+        """
+        released_fiat = self.reserved_fiat
+        released_crypto = self.reserved_crypto
+
+        self.balance += self.reserved_fiat
+        self.crypto_balance += self.reserved_crypto
+        self.reserved_fiat = 0.0
+        self.reserved_crypto = 0.0
+
+        if released_fiat > 0 or released_crypto > 0:
+            self.logger.info(f"💰 Released reserved funds: ${released_fiat:.2f} fiat + {released_crypto:.6f} crypto")
+            self.logger.info(f"💰 New balances: ${self.balance:.2f} available fiat + {self.crypto_balance:.6f} available crypto")
+        else:
+            self.logger.debug("No reserved funds to release")

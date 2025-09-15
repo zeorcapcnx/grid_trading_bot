@@ -8,6 +8,7 @@ from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
 
 from .exceptions import ConfigFileNotFoundError, ConfigParseError
+from .risk_management_mode import RiskManagementMode
 from .trading_mode import TradingMode
 
 
@@ -143,6 +144,18 @@ class ConfigManager:
     # --- Risk management (Take Profit / Stop Loss) Accessor Methods ---
     def get_risk_management(self):
         return self.config.get("risk_management", {})
+
+    def get_risk_management_mode(self) -> RiskManagementMode | None:
+        risk_management = self.get_risk_management()
+        mode = risk_management.get("mode", None)
+
+        if mode:
+            return RiskManagementMode.from_string(mode)
+        return None
+
+    def is_dynamic_mode_enabled(self) -> bool:
+        mode = self.get_risk_management_mode()
+        return mode == RiskManagementMode.DYNAMIC
 
     def get_take_profit(self):
         risk_management = self.get_risk_management()

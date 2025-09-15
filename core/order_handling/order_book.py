@@ -64,3 +64,13 @@ class OrderBook:
             if order.identifier == order_id:
                 order.status = new_status
                 break
+
+    def clear_all_orders(self) -> None:
+        """
+        Clears all orders from the order book.
+        Used when restarting the grid.
+        """
+        self.buy_orders.clear()
+        self.sell_orders.clear()
+        self.non_grid_orders.clear()
+        self.order_to_grid_map.clear()

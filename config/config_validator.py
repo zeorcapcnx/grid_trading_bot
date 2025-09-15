@@ -6,6 +6,7 @@ from strategies.spacing_type import SpacingType
 from strategies.strategy_type import StrategyType
 
 from .exceptions import ConfigValidationError
+from .risk_management_mode import RiskManagementMode
 from .trading_mode import TradingMode
 
 
@@ -192,6 +193,16 @@ class ConfigValidator:
     def _validate_limits(self, config):
         invalid_fields = []
         limits = config.get("risk_management", {})
+
+        # Validate risk management mode
+        mode = limits.get("mode")
+        if mode is not None:
+            try:
+                RiskManagementMode.from_string(mode)
+            except ValueError as e:
+                self.logger.error(f"Invalid risk management mode: {e}")
+                invalid_fields.append("risk_management.mode")
+
         take_profit = limits.get("take_profit", {})
         stop_loss = limits.get("stop_loss", {})
 

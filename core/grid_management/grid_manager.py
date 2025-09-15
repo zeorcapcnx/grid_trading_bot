@@ -67,11 +67,9 @@ class GridManager:
                 )
                 for price in self.price_grids
             }
-        self.logger.info(f"Grids and levels initialized. Central price: {self.central_price}")
-        self.logger.info(f"Price grids: {self.price_grids}")
-        self.logger.info(f"Buy grids: {self.sorted_buy_grids}")
-        self.logger.info(f"Sell grids: {self.sorted_sell_grids}")
-        self.logger.info(f"Grid levels: {self.grid_levels}")
+        self.logger.info(f"📊 Grid initialized: {len(self.price_grids)} levels, trigger ${self.central_price:.2f}")
+        self.logger.debug(f"Range: ${min(self.price_grids):.2f} - ${max(self.price_grids):.2f}")
+        self.logger.debug(f"Buy levels: {len(self.sorted_buy_grids)}, Sell levels: {len(self.sorted_sell_grids)}")
 
     def get_trigger_price(self) -> float:
         return self.central_price
