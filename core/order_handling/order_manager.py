@@ -473,7 +473,7 @@ class OrderManager:
 
         event = "Take profit" if take_profit_order else "Stop loss"
         try:
-            quantity = self.balance_tracker.crypto_balance
+            quantity = self.balance_tracker.get_adjusted_crypto_balance()
             order = await self.order_execution_strategy.execute_market_order(
                 OrderSide.SELL,
                 self.trading_pair,
@@ -486,6 +486,15 @@ class OrderManager:
                 raise Exception
 
             self.order_book.add_order(order)
+
+            # For market orders in backtest mode, we need to manually trigger the ORDER_FILLED event
+            # since they are immediately filled but don't go through the normal simulation cycle
+            if order.filled == order.amount:  # Check if order is completely filled
+                await self.event_bus.publish(Events.ORDER_FILLED, order)
+                # Give a brief moment for the event handlers to process the balance update
+                import asyncio
+                await asyncio.sleep(0.001)  # 1ms delay to ensure event processing completes
+
             await self.notification_handler.async_send_notification(
                 NotificationType.TAKE_PROFIT_TRIGGERED if take_profit_order else NotificationType.STOP_LOSS_TRIGGERED,
                 order_details=str(order),

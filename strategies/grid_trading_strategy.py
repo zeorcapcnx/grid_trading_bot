@@ -237,6 +237,10 @@ class GridTradingStrategy(TradingStrategyInterface):
             await self.order_manager.simulate_order_fills(high_price, low_price, timestamp)
 
             if await self._handle_take_profit_stop_loss(current_price):
+                # Update final account value immediately after TP execution
+                self.data.loc[timestamp, "account_value"] = self.balance_tracker.get_total_balance_value(current_price)
+                self.data.loc[timestamp, "cumulative_profit"] = self._cumulative_profit
+                self.logger.info(f"Take-profit executed. Final account value: ${self.balance_tracker.get_total_balance_value(current_price):.2f}")
                 break
 
             self.data.loc[timestamp, "account_value"] = self.balance_tracker.get_total_balance_value(current_price)
@@ -288,10 +292,21 @@ class GridTradingStrategy(TradingStrategyInterface):
             tuple: A dictionary summarizing performance metrics and a list of formatted order details.
         """
         if self.trading_mode == TradingMode.BACKTEST:
-            initial_price = self.close_prices[0]
-            final_price = self.close_prices[-1]
+            # Filter data to only include rows with valid account_value (non-NaN)
+            # This ensures we only analyze data up to where the backtest actually ran
+            valid_data = self.data.dropna(subset=['account_value'])
+
+            if len(valid_data) == 0:
+                self.logger.error("No valid data available for performance analysis")
+                return {}, []
+
+            initial_price = valid_data["close"].iloc[0]
+            final_price = valid_data["close"].iloc[-1]
+
+            self.logger.info(f"Performance analysis period: {valid_data.index[0]} to {valid_data.index[-1]} ({len(valid_data)} data points)")
+
             return self.trading_performance_analyzer.generate_performance_summary(
-                self.data,
+                valid_data,
                 initial_price,
                 self.balance_tracker.get_adjusted_fiat_balance(),
                 self.balance_tracker.get_adjusted_crypto_balance(),
@@ -365,10 +380,6 @@ class GridTradingStrategy(TradingStrategyInterface):
         Evaluates whether take-profit or stop-loss conditions are met.
         Returns True if any condition is triggered.
         """
-        if self.balance_tracker.crypto_balance == 0:
-            self.logger.debug("No crypto balance available; skipping TP/SL checks.")
-            return False
-
         return await self._handle_take_profit(current_price) or await self._handle_stop_loss(current_price)
 
     async def _on_order_filled(self, order) -> None:
@@ -495,6 +506,11 @@ class GridTradingStrategy(TradingStrategyInterface):
             and current_price >= self.config_manager.get_take_profit_threshold()
         ):
             self.logger.info(f"Take-profit triggered at {current_price}. Executing TP order...")
+            # Stop all grid operations immediately to prevent competing for crypto balance
+            self._stop_trading = True
+            # Give a brief moment for any pending grid orders to complete first
+            import asyncio
+            await asyncio.sleep(0.001)  # 1ms delay to ensure pending orders are processed
             await self.order_manager.execute_take_profit_or_stop_loss_order(
                 current_price=current_price,
                 take_profit_order=True,

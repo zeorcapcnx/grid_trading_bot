@@ -113,35 +113,53 @@ class TradingPerformanceAnalyzer:
             float: The Sharpe ratio.
         """
         if len(data) < 2:
+            self.logger.warning("Insufficient data for Sharpe ratio calculation")
             return 0.0
-            
+
         # Calculate total return and time period
         initial_value = data["account_value"].iloc[0]
         final_value = data["account_value"].iloc[-1]
-        
-        if initial_value <= 0:
+
+        if initial_value <= 0 or np.isnan(initial_value) or np.isnan(final_value):
+            self.logger.warning(f"Invalid account values for Sharpe: initial={initial_value}, final={final_value}")
             return 0.0
-            
+
         # Total return
         total_return = (final_value / initial_value) - 1
-        
+
+        if np.isnan(total_return) or np.isinf(total_return):
+            self.logger.warning(f"Invalid total return for Sharpe: {total_return}")
+            return 0.0
+
         # Time period in years - use actual dates, not data point count
         start_date = data.index[0]
         end_date = data.index[-1]
         time_period_days = (end_date - start_date).days + 1
         time_period_years = time_period_days / 365.25
-        
+
         if time_period_years <= 0:
+            self.logger.warning(f"Invalid time period for Sharpe: {time_period_years} years")
             return 0.0
-        
+
         # Annualized return
         annual_return = ((1 + total_return) ** (1 / time_period_years)) - 1
-        
+
+        if np.isnan(annual_return) or np.isinf(annual_return):
+            self.logger.warning(f"Invalid annual return for Sharpe: {annual_return}")
+            return 0.0
+
         # Calculate returns for volatility (respecting data frequency)
         returns = data["account_value"].pct_change(fill_method=None).dropna()
         if len(returns) == 0:
+            self.logger.warning("No valid returns for Sharpe calculation")
             return 0.0
-            
+
+        # Remove infinite and NaN values from returns
+        returns = returns.replace([np.inf, -np.inf], np.nan).dropna()
+        if len(returns) == 0:
+            self.logger.warning("No valid returns after cleaning for Sharpe calculation")
+            return 0.0
+
         # Determine data frequency and adjust volatility scaling
         if len(returns) > 1:
             # Calculate time delta between observations
@@ -155,18 +173,26 @@ class TradingPerformanceAnalyzer:
                 observations_per_year = 252
         else:
             observations_per_year = 252
-        
+
         period_volatility = returns.std()
-        if period_volatility == 0:
+        if period_volatility == 0 or np.isnan(period_volatility):
             # No volatility - return simplified ratio
             return round((annual_return - ANNUAL_RISK_FREE_RATE) * 10, 2) if annual_return > ANNUAL_RISK_FREE_RATE else 0.0
-        
+
         # Properly annualize volatility based on data frequency
         annual_volatility = period_volatility * np.sqrt(observations_per_year)
-        
+
+        if np.isnan(annual_volatility) or annual_volatility == 0:
+            self.logger.warning(f"Invalid annual volatility for Sharpe: {annual_volatility}")
+            return 0.0
+
         # Calculate Sharpe ratio
         sharpe_ratio = (annual_return - ANNUAL_RISK_FREE_RATE) / annual_volatility
-        
+
+        if np.isnan(sharpe_ratio) or np.isinf(sharpe_ratio):
+            self.logger.warning(f"Invalid Sharpe ratio result: {sharpe_ratio}")
+            return 0.0
+
         self.logger.info(f"Sharpe calculation: {time_period_days} days ({time_period_years:.2f} years)")
         self.logger.info(f"Data frequency: {observations_per_year:.0f} observations/year (√{observations_per_year:.0f} volatility scaling)")
         self.logger.info(f"Total return: {total_return:.4f} ({total_return*100:.2f}%), Annual return: {annual_return:.4f} ({annual_return*100:.2f}%)")
@@ -185,35 +211,53 @@ class TradingPerformanceAnalyzer:
             float: The Sortino ratio.
         """
         if len(data) < 2:
+            self.logger.warning("Insufficient data for Sortino ratio calculation")
             return 0.0
-            
+
         # Calculate total return and time period (same as Sharpe)
         initial_value = data["account_value"].iloc[0]
         final_value = data["account_value"].iloc[-1]
-        
-        if initial_value <= 0:
+
+        if initial_value <= 0 or np.isnan(initial_value) or np.isnan(final_value):
+            self.logger.warning(f"Invalid account values for Sortino: initial={initial_value}, final={final_value}")
             return 0.0
-            
+
         # Total return
         total_return = (final_value / initial_value) - 1
-        
+
+        if np.isnan(total_return) or np.isinf(total_return):
+            self.logger.warning(f"Invalid total return for Sortino: {total_return}")
+            return 0.0
+
         # Time period in years - use actual dates, not data point count
         start_date = data.index[0]
         end_date = data.index[-1]
         time_period_days = (end_date - start_date).days + 1
         time_period_years = time_period_days / 365.25
-        
+
         if time_period_years <= 0:
+            self.logger.warning(f"Invalid time period for Sortino: {time_period_years} years")
             return 0.0
-        
+
         # Annualized return
         annual_return = ((1 + total_return) ** (1 / time_period_years)) - 1
-        
+
+        if np.isnan(annual_return) or np.isinf(annual_return):
+            self.logger.warning(f"Invalid annual return for Sortino: {annual_return}")
+            return 0.0
+
         # Calculate returns for downside deviation (respecting data frequency)
         returns = data["account_value"].pct_change(fill_method=None).dropna()
         if len(returns) == 0:
+            self.logger.warning("No valid returns for Sortino calculation")
             return 0.0
-        
+
+        # Remove infinite and NaN values from returns
+        returns = returns.replace([np.inf, -np.inf], np.nan).dropna()
+        if len(returns) == 0:
+            self.logger.warning("No valid returns after cleaning for Sortino calculation")
+            return 0.0
+
         # Determine data frequency for proper risk-free rate scaling
         if len(returns) > 1:
             # Calculate time delta between observations
@@ -227,27 +271,36 @@ class TradingPerformanceAnalyzer:
                 observations_per_year = 252
         else:
             observations_per_year = 252
-            
+
         # Calculate period risk-free rate (not daily)
         period_risk_free = ANNUAL_RISK_FREE_RATE / observations_per_year
         downside_returns = returns[returns < period_risk_free] - period_risk_free
-        
+
         if len(downside_returns) == 0:
             # No downside risk - return high positive value if annual return > risk free
             result = round((annual_return - ANNUAL_RISK_FREE_RATE) * 10, 2) if annual_return > ANNUAL_RISK_FREE_RATE else 0.0
             self.logger.debug(f"No downside - Sortino ratio: {result}")
             return result
-        
+
         downside_std = downside_returns.std()
-        if downside_std == 0:
+        if downside_std == 0 or np.isnan(downside_std):
+            self.logger.warning(f"Invalid downside standard deviation for Sortino: {downside_std}")
             return 0.0
-            
+
         # Properly annualize downside deviation based on data frequency
         annual_downside_deviation = downside_std * np.sqrt(observations_per_year)
-        
+
+        if np.isnan(annual_downside_deviation) or annual_downside_deviation == 0:
+            self.logger.warning(f"Invalid annual downside deviation for Sortino: {annual_downside_deviation}")
+            return 0.0
+
         # Calculate Sortino ratio
         sortino_ratio = (annual_return - ANNUAL_RISK_FREE_RATE) / annual_downside_deviation
-        
+
+        if np.isnan(sortino_ratio) or np.isinf(sortino_ratio):
+            self.logger.warning(f"Invalid Sortino ratio result: {sortino_ratio}")
+            return 0.0
+
         self.logger.info(f"Sortino calculation: {time_period_days} days ({time_period_years:.2f} years)")
         self.logger.info(f"Data frequency: {observations_per_year:.0f} observations/year (√{observations_per_year:.0f} volatility scaling)")
         self.logger.info(f"Total return: {total_return:.4f} ({total_return*100:.2f}%), Annual return: {annual_return:.4f} ({annual_return*100:.2f}%)")
@@ -337,19 +390,21 @@ class TradingPerformanceAnalyzer:
     ) -> dict:
         """
         Calculate comprehensive buy-and-hold performance metrics.
+        Uses the same time period as the grid strategy data.
 
         Args:
-            data: Historical data with price information
+            data: Historical data with price information (truncated to same period as grid)
             initial_balance: Initial investment amount
             initial_price: Starting crypto price
-            final_price: Final crypto price
+            final_price: Final crypto price (at the same end point as grid strategy)
 
         Returns:
             Dict with buy-and-hold performance metrics
         """
-        # Create buy-and-hold portfolio value series
+        # Create buy-and-hold portfolio value series using the SAME time period as grid strategy
         if 'close' in data.columns:
-            prices = data['close']
+            # Use actual price data from the same period
+            prices = data['close'].copy()
         else:
             # Fallback: estimate from account values (less accurate)
             prices = pd.Series(index=data.index, dtype=float)
@@ -358,20 +413,23 @@ class TradingPerformanceAnalyzer:
             # Linear interpolation for missing values
             prices = prices.interpolate()
 
-        # Calculate buy-and-hold portfolio values
+        # Calculate buy-and-hold portfolio values using the same time period
         crypto_quantity = initial_balance / initial_price
         bh_portfolio_values = prices * crypto_quantity
 
-        # Create buy-and-hold data frame
+        # Create buy-and-hold data frame with the SAME index as grid strategy data
         bh_data = pd.DataFrame({'account_value': bh_portfolio_values}, index=data.index)
 
-        # Calculate all metrics for buy-and-hold
+        # Calculate all metrics for buy-and-hold using the SAME period
         bh_total_return = ((final_price / initial_price) - 1) * 100
         bh_max_drawdown = self._calculate_drawdown(bh_data)
         bh_max_runup = self._calculate_runup(bh_data)
         bh_sharpe = self._calculate_sharpe_ratio(bh_data)
         bh_sortino = self._calculate_sortino_ratio(bh_data)
         bh_time_in_profit, bh_time_in_loss = self._calculate_time_in_profit_loss(initial_balance, bh_data)
+
+        self.logger.info(f"Buy-and-hold calculation period: {data.index[0]} to {data.index[-1]} ({len(data)} data points)")
+        self.logger.info(f"Buy-and-hold: {initial_price:.2f} -> {final_price:.2f} = {bh_total_return:.2f}% return")
 
         return {
             'return': bh_total_return,
@@ -442,15 +500,15 @@ class TradingPerformanceAnalyzer:
             "Max Runup": f"{max_runup:.2f}%",
             "Time in Profit %": f"{time_in_profit:.2f}%",
             "Time in Loss %": f"{time_in_loss:.2f}%",
-            "Sharpe Ratio": f"{sharpe_ratio:.2f}",
-            "Sortino Ratio": f"{sortino_ratio:.2f}",
+            "Sharpe Ratio": f"{sharpe_ratio:.2f}" if not np.isnan(sharpe_ratio) else "0.00",
+            "Sortino Ratio": f"{sortino_ratio:.2f}" if not np.isnan(sortino_ratio) else "0.00",
             
             # === BUY & HOLD PERFORMANCE ===
             "Buy and Hold Return %": f"{buy_and_hold_metrics['return']:.2f}%",
             "Buy and Hold Max Drawdown": f"{buy_and_hold_metrics['max_drawdown']:.2f}%",
             "Buy and Hold Max Runup": f"{buy_and_hold_metrics['max_runup']:.2f}%",
-            "Buy and Hold Sharpe Ratio": f"{buy_and_hold_metrics['sharpe_ratio']:.2f}",
-            "Buy and Hold Sortino Ratio": f"{buy_and_hold_metrics['sortino_ratio']:.2f}",
+            "Buy and Hold Sharpe Ratio": f"{buy_and_hold_metrics['sharpe_ratio']:.2f}" if not np.isnan(buy_and_hold_metrics['sharpe_ratio']) else "0.00",
+            "Buy and Hold Sortino Ratio": f"{buy_and_hold_metrics['sortino_ratio']:.2f}" if not np.isnan(buy_and_hold_metrics['sortino_ratio']) else "0.00",
             "Buy and Hold Time in Profit %": f"{buy_and_hold_metrics['time_in_profit']:.2f}%",
             "Buy and Hold Time in Loss %": f"{buy_and_hold_metrics['time_in_loss']:.2f}%",
             
@@ -458,7 +516,7 @@ class TradingPerformanceAnalyzer:
             "Cash from Profit Taking": f"{final_cumulative_profit:.2f} {self.quote_currency}",
             "Cash Gain from Profit Taking %": f"{(final_cumulative_profit / initial_balance) * 100:.2f}%",
             "Total Fees": f"{total_fees:.2f}",
-            "Final Balance (Fiat)": f"{final_balance:.2f}",
+            "Final Balance (Fiat)": f"{final_balance:.2f} {self.quote_currency}",
             "Final Crypto Balance": f"{final_crypto_balance:.4f} {self.base_currency}",
             "Final Crypto Balance (USDT)": f"{final_crypto_value:.2f} {self.quote_currency}",
             "Fiat Balance (USDT)": f"{final_fiat_balance:.2f} {self.quote_currency}",

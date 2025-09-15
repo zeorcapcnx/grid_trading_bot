@@ -158,11 +158,16 @@ class BalanceTracker:
         """
         fee = self.fee_calculator.calculate_fee(quantity * price)
         sale_proceeds = quantity * price - fee
-        self.reserved_crypto -= quantity
 
-        if self.reserved_crypto < 0:
-            self.crypto_balance += abs(self.reserved_crypto)  # Adjust with excess reserved crypto
+        # For market orders (like TP/SL), sell from both reserved and main crypto balance
+        if quantity <= self.reserved_crypto:
+            # Quantity can be covered by reserved crypto alone
+            self.reserved_crypto -= quantity
+        else:
+            # Need to use both reserved and main crypto balance
+            remaining_quantity = quantity - self.reserved_crypto
             self.reserved_crypto = 0
+            self.crypto_balance -= remaining_quantity
 
         self.balance += sale_proceeds
         self.total_fees += fee
